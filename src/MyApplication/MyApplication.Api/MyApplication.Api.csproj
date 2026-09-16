@@ -9,10 +9,16 @@
   <ItemGroup>
       <PackageReference Include="Elastic.Serilog.Sinks" Version="9.0.0" />
       <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        <PrivateAssets>all</PrivateAssets>
+      </PackageReference>
+      <PackageReference Include="Npgsql.OpenTelemetry" Version="10.0.3" />
       <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
       <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
       <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
       <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.18.0" />
+      <PackageReference Include="Scalar.AspNetCore" Version="2.17.4" />
       <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
   </ItemGroup>
 

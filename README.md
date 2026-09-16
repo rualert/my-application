@@ -1,20 +1,21 @@
 # MyApplication
 
-ASP.NET Core Web API (.NET 10). Логи пишутся через [Serilog](https://serilog.net/) напрямую в Elasticsearch (формат ECS), а каждый запрос трассируется через [OpenTelemetry](https://opentelemetry.io/) — и то, и другое можно смотреть в Kibana.
+ASP.NET Core Web API (.NET 10). Логи пишутся через [Serilog](https://serilog.net/) напрямую в Elasticsearch (формат ECS), а каждый запрос трассируется через [OpenTelemetry](https://opentelemetry.io/) — и то, и другое можно смотреть в Kibana. Данные (сейчас — заметки) хранятся в PostgreSQL.
 
-Приложение и окружение для логов/трейсинга (Elasticsearch + Kibana + APM Server) разворачиваются как **отдельные, независимые Docker Compose стеки**, каждый со своим образом(-ами):
+Приложение и его окружение (логи/трейсинг, база данных) разворачиваются как **отдельные, независимые Docker Compose стеки**, каждый со своим образом(-ами):
 
-- `docker-compose.elk.yml` — **окружение**: Elasticsearch + Kibana + APM Server.
+- `docker-compose.elk.yml` — **логи и трейсинг**: Elasticsearch + Kibana + APM Server.
+- `docker-compose.db.yml` — **база данных**: PostgreSQL.
 - `docker-compose.app.yml` — **приложение**: только `myapplication-api`.
 
-Они взаимодействуют через общую внешнюю Docker-сеть (`elastic`). Любой из стеков можно собрать, развернуть, перезапустить или остановить, не трогая другой — при условии, что сеть уже существует.
+Они взаимодействуют через общую внешнюю Docker-сеть (`elastic`) — сеть создаётся первым из стеков, `docker-compose.elk.yml`. Любой из стеков можно собрать, развернуть, перезапустить или остановить, не трогая другие — при условии, что сеть уже существует. Есть одно исключение: в отличие от логов/трейсов (которые просто отключаются, если недоступны), при старте приложение применяет миграции EF Core к базе, поэтому PostgreSQL должен быть поднят и доступен **до** запуска приложения — иначе оно не стартует.
 
 ## Требования
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) — для локального запуска API
 - [Docker](https://www.docker.com/) + Docker Compose — для запуска в контейнерах
 
-## 1. Запуск окружения (Elasticsearch + Kibana)
+## 1. Запуск логов и трейсинга (Elasticsearch + Kibana + APM Server)
 
 Из корня репозитория:
 
@@ -36,11 +37,27 @@ docker compose -f docker-compose.elk.yml down      # остановить, да�
 docker compose -f docker-compose.elk.yml down -v   # остановить и стереть данные Elasticsearch
 ```
 
-## 2. Запуск API
+## 2. Запуск базы данных (PostgreSQL)
+
+Требует, чтобы сеть `elastic` уже существовала (создаётся шагом 1).
+
+```bash
+docker compose -f docker-compose.db.yml up -d
+```
+
+Поднимает PostgreSQL на `localhost:5432` (база `myapplication`, пользователь/пароль `myapplication`/`myapplication` — см. `docker-compose.db.yml`). Схему создавать не нужно — приложение само применяет миграции EF Core при старте.
+
+```bash
+docker compose -f docker-compose.db.yml ps
+docker compose -f docker-compose.db.yml down      # остановить, данные сохраняются
+docker compose -f docker-compose.db.yml down -v   # остановить и стереть данные Postgres
+```
+
+## 3. Запуск API
 
 ### Вариант A — локально через `dotnet run`
 
-Требует, чтобы окружение (шаг 1) было поднято, так как приложение по умолчанию отправляет логи в Elasticsearch на `http://localhost:9200` и трейсы в APM Server на `http://localhost:8200` (см. `Elasticsearch:Uri` / `OpenTelemetry:OtlpEndpoint` в `appsettings.json`).
+Требует, чтобы окружение (шаги 1–2) было поднято: приложение по умолчанию отправляет логи в Elasticsearch на `http://localhost:9200`, трейсы в APM Server на `http://localhost:8200`, и **обязательно** подключается к PostgreSQL на `localhost:5432` (без него не стартует — см. `Elasticsearch:Uri` / `OpenTelemetry:OtlpEndpoint` / `ConnectionStrings:Notes` в `appsettings.json`).
 
 Из `src/MyApplication/`:
 
@@ -51,9 +68,11 @@ dotnet run --project MyApplication.Api
 
 API будет доступен по адресу `http://localhost:5184` (полный список профилей/портов — в `MyApplication.Api/Properties/launchSettings.json`). Логи идут в консоль и в data stream `logs-myapplication-api-development` в Elasticsearch.
 
+Интерактивная документация API ([Scalar](https://scalar.com/)) — `http://localhost:5184/scalar`, поверх OpenAPI-документа `http://localhost:5184/openapi/v1.json`. Доступна **только в среде Development** (т.е. только при локальном `dotnet run` — в Docker-образе `ASPNETCORE_ENVIRONMENT=Production`, там эти два адреса не смаплены).
+
 ### Вариант B — отдельным Docker Compose стеком (независимо от окружения)
 
-Требует, чтобы сеть `elastic` уже существовала, т.е. окружение (шаг 1) должно быть запущено хотя бы один раз ранее.
+Требует, чтобы сеть `elastic` уже существовала и сервис `postgres` (шаг 2) был поднят и доступен.
 
 Из корня репозитория:
 
@@ -61,7 +80,7 @@ API будет доступен по адресу `http://localhost:5184` (по�
 docker compose -f docker-compose.app.yml up -d --build
 ```
 
-API будет доступен по адресу `http://localhost:8080`, подключается к сети `elastic`, отправляет логи на `elasticsearch:9200` (`logs-myapplication-api-production`) и трейсы на `apm-server:8200`.
+API будет доступен по адресу `http://localhost:8080`, подключается к сети `elastic`, отправляет логи на `elasticsearch:9200` (`logs-myapplication-api-production`), трейсы на `apm-server:8200` и подключается к БД на `postgres:5432`.
 
 ```bash
 docker compose -f docker-compose.app.yml logs -f myapplication-api
@@ -73,10 +92,12 @@ docker compose -f docker-compose.app.yml up -d --build   # пересобрат�
 
 ```bash
 docker build -t myapplication-api .
-docker run -d --name myapplication-api -p 8080:8080 myapplication-api
+docker run -d --name myapplication-api -p 8080:8080 \
+  -e ConnectionStrings__Notes="Host=host.docker.internal;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication" \
+  myapplication-api
 ```
 
-Без `Elasticsearch__Uri`, указывающего на доступный кластер, отправка логов в Elasticsearch просто не будет подключаться (само приложение при этом продолжает работать); логи всё равно видны через `docker logs -f myapplication-api`.
+Без `Elasticsearch__Uri`, указывающего на доступный кластер, отправка логов в Elasticsearch просто не будет подключаться (само приложение при этом продолжает работать); логи всё равно видны через `docker logs -f myapplication-api`. А вот `ConnectionStrings__Notes` обязателен и должен указывать на реально доступный из контейнера PostgreSQL — без него приложение упадёт при старте на этапе применения миграций.
 
 ## Просмотр логов в Kibana
 
@@ -104,6 +125,24 @@ docker run -d --name myapplication-api -p 8080:8080 myapplication-api
 - **Трассировка** — `OpenTelemetry` с инструментацией ASP.NET Core и `HttpClient`, экспорт по OTLP в APM Server. Адрес задаётся через `OpenTelemetry:OtlpEndpoint` в `appsettings.json` (по умолчанию `http://localhost:8200`) или переменную окружения `OpenTelemetry__OtlpEndpoint` (в `docker-compose.app.yml` указана как `http://apm-server:8200`). Если адрес не задан/недоступен, трассировка просто отключается — приложение не падает.
 
 **При добавлении новой исходящей интеграции (клиент БД, продюсер/консьюмер очереди сообщений, вызов другого HTTP-сервиса) нужно в том же изменении подключить соответствующую OpenTelemetry-инструментацию** (например, `OpenTelemetry.Instrumentation.EntityFrameworkCore`/`Npgsql.OpenTelemetry` для Postgres или подходящий пакет инструментации для клиента очереди), чтобы новый переход между системами не стал слепой зоной в трейсе.
+
+## База данных (PostgreSQL / EF Core)
+
+Приложение хранит данные (сейчас — заметки, `src/MyApplication/MyApplication.Infrastructure/Notes/`) в PostgreSQL через EF Core (`Npgsql.EntityFrameworkCore.PostgreSQL`). Строка подключения задаётся через `ConnectionStrings:Notes` в `appsettings.json` (по умолчанию `localhost:5432`) или переменную окружения `ConnectionStrings__Notes` (в `docker-compose.app.yml` указана как `postgres:5432`).
+
+При старте приложение само применяет непримененные миграции (`Database.MigrateAsync()` в `Program.cs`) — отдельно накатывать схему вручную не нужно, но PostgreSQL должен быть доступен на момент старта.
+
+Добавление новой миграции после изменения сущностей в `MyApplication.Domain`/маппинга в `MyApplication.Infrastructure`:
+
+```bash
+cd src/MyApplication
+dotnet ef migrations add <Название> \
+  --project MyApplication.Infrastructure \
+  --startup-project MyApplication.Api \
+  --output-dir Notes/Migrations
+```
+
+Требует установленного `dotnet-ef` (`dotnet tool install --global dotnet-ef`), версия которого должна соответствовать версии EF Core в проекте.
 
 ## Документация по бизнес-логике
 

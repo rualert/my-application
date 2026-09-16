@@ -2,6 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyApplication.Application\MyApplication.Application.csproj" />
+    <ProjectReference Include="..\MyApplication.Domain\MyApplication.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -1,5 +1,8 @@
-# "Application" stack: the API only, deployable independently of the ELK environment.
+# "Application" stack: the API only, deployable independently of the ELK/DB environments.
 # Requires the `elastic` network to already exist (created by docker-compose.elk.yml).
+# Also requires docker-compose.db.yml's `postgres` service to be reachable on that network
+# before startup — unlike logging/tracing, the app applies EF Core migrations on startup
+# and will fail to start if Postgres isn't up yet.
 # Run: docker compose -f docker-compose.app.yml up -d --build
 
 services:
@@ -12,6 +15,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - Elasticsearch__Uri=http://elasticsearch:9200
       - OpenTelemetry__OtlpEndpoint=http://apm-server:8200
+      - ConnectionStrings__Notes=Host=postgres;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication
     ports:
       - "8080:8080"
     networks:
