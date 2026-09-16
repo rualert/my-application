@@ -1,7 +1,7 @@
-# "Database" stack: PostgreSQL, deployable/restartable independently of the app.
-# Requires the `elastic` network to already exist (created by docker-compose.elk.yml) —
-# it's just the one shared cross-stack network, despite the Elastic-flavored name.
-# Run: docker compose -f docker-compose.db.yml up -d
+# Стек "база данных": PostgreSQL, разворачивается/перезапускается независимо от приложения.
+# Требует, чтобы сеть `elastic` уже существовала (создаётся docker-compose.elk.yml) —
+# это просто одна общая сеть для всех стеков, несмотря на "эластиковое" название.
+# Запуск: docker compose -f docker-compose.db.yml up -d
 
 services:
   postgres:

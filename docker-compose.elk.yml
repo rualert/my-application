@@ -1,5 +1,5 @@
-# "Environment" stack: Elasticsearch + Kibana, deployable independently of the application.
-# Run: docker compose -f docker-compose.elk.yml up -d
+# Стек "окружение": Elasticsearch + Kibana, разворачивается независимо от приложения.
+# Запуск: docker compose -f docker-compose.elk.yml up -d
 
 services:
   elasticsearch:
@@ -40,8 +40,8 @@ services:
     networks:
       - elastic
 
-  # Receives distributed traces over OTLP (gRPC/HTTP on :8200) and writes them to
-  # Elasticsearch, where they show up in Kibana under Observability -> APM.
+  # Принимает распределённые трейсы по OTLP (gRPC/HTTP на :8200) и пишет их в
+  # Elasticsearch, откуда они видны в Kibana в разделе Observability -> APM.
   apm-server:
     image: docker.elastic.co/apm/apm-server:8.15.0
     container_name: apm-server

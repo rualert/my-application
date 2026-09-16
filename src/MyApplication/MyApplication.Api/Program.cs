@@ -28,15 +28,16 @@ builder.Host.UseSerilog((context, _, loggerConfiguration) =>
         });
 });
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// Регистрация сервисов.
+// Подробнее про настройку OpenAPI: https://aka.ms/aspnet/openapi
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddScoped<IWeatherForecastService, WeatherForecastService>();
 
-// Global exception handling: any DomainException (Domain or Application layer)
-// maps to 400 Bad Request, so controllers don't need their own try/catch. Anything
-// else is unhandled and falls through to a generic ProblemDetails 500 response.
+// Глобальная обработка исключений: любое DomainException (из слоя Domain или
+// Application) маппится на 400 Bad Request, поэтому контроллерам не нужен свой
+// try/catch. Всё остальное остаётся необработанным и отдаётся как общий
+// ProblemDetails-ответ 500.
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddProblemDetails();
 
@@ -45,11 +46,12 @@ builder.Services.AddDbContext<NotesDbContext>(options =>
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
 builder.Services.AddScoped<INoteService, NoteService>();
 
-// Distributed tracing: every incoming request and every outgoing HTTP call made with
-// HttpClient gets a W3C trace-context Activity, propagated across services via the
-// `traceparent` header. Serilog/ECS already stamps log lines with the same trace.id/span.id,
-// so logs and traces correlate automatically. When adding a database client or a message
-// queue client, register matching OpenTelemetry instrumentation for it here too.
+// Распределённая трассировка: каждый входящий запрос и каждый исходящий вызов
+// через HttpClient получает Activity в формате W3C trace-context, который
+// прокидывается между сервисами через заголовок `traceparent`. Serilog/ECS уже
+// проставляет тот же trace.id/span.id в строки логов, поэтому логи и трейсы
+// коррелируют автоматически. При добавлении клиента БД или очереди сообщений
+// здесь же нужно подключить соответствующую OpenTelemetry-инструментацию.
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))
     .WithTracing(tracing =>
@@ -77,7 +79,7 @@ app.UseExceptionHandler();
 
 app.UseSerilogRequestLogging();
 
-// Configure the HTTP request pipeline.
+// Настройка конвейера обработки HTTP-запросов.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

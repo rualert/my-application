@@ -1,9 +1,9 @@
-# "Application" stack: the API only, deployable independently of the ELK/DB environments.
-# Requires the `elastic` network to already exist (created by docker-compose.elk.yml).
-# Also requires docker-compose.db.yml's `postgres` service to be reachable on that network
-# before startup — unlike logging/tracing, the app applies EF Core migrations on startup
-# and will fail to start if Postgres isn't up yet.
-# Run: docker compose -f docker-compose.app.yml up -d --build
+# Стек "приложение": только API, разворачивается независимо от окружений ELK/БД.
+# Требует, чтобы сеть `elastic` уже существовала (создаётся docker-compose.elk.yml).
+# Также требует, чтобы сервис `postgres` из docker-compose.db.yml был доступен по
+# этой сети до старта — в отличие от логов/трейсинга, приложение применяет
+# миграции EF Core при старте и не запустится, если Postgres ещё не поднят.
+# Запуск: docker compose -f docker-compose.app.yml up -d --build
 
 services:
   myapplication-api:

@@ -1,14 +1,14 @@
-# Dependencies
+# Зависимости
 /node_modules
 
-# Production
+# Продакшн-сборка
 /build
 
-# Generated files
+# Сгенерированные файлы
 .docusaurus
 .cache-loader
 
-# Misc
+# Разное
 .DS_Store
 .env.local
 .env.development.local
