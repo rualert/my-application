@@ -1,0 +1,22 @@
+# "Application" stack: the API only, deployable independently of the ELK environment.
+# Requires the `elastic` network to already exist (created by docker-compose.elk.yml).
+# Run: docker compose -f docker-compose.app.yml up -d --build
+
+services:
+  myapplication-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myapplication-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Elasticsearch__Uri=http://elasticsearch:9200
+    ports:
+      - "8080:8080"
+    networks:
+      - elastic
+
+networks:
+  elastic:
+    name: elastic
+    external: true

@@ -4,12 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-The solution `src/MyApplication/MyApplication.sln` currently has a single project: `MyApplication.Api`, an ASP.NET Core Web API (.NET 10) generated from the default template. There is no README, no test project, and no Application/Domain/Infrastructure projects yet — see the architecture rules below for how the solution should be structured as those are added.
+The solution `src/MyApplication/MyApplication.sln` currently has a single project: `MyApplication.Api`, an ASP.NET Core Web API (.NET 10) generated from the default template. There is no test project, and no Application/Domain/Infrastructure projects yet — see the architecture rules below for how the solution should be structured as those are added.
 
 ## Structure
 
+- `README.md` — run instructions (local + Docker + Docker Compose/ELK).
+- `Dockerfile` / `.dockerignore` — multi-stage build (SDK → aspnet runtime) for `MyApplication.Api`, listens on port 8080 in the container. Build context is the repo root.
+- The app and its logging environment deploy as two **independent** Compose stacks, joined only by a shared external Docker network `elastic` (declared with `external: true` in the app stack) — never merge them back into one file:
+  - `docker-compose.elk.yml` — single-node Elasticsearch + Kibana (security disabled, dev-only). Owns/creates the `elastic` network.
+  - `docker-compose.app.yml` — `myapplication-api` only. Requires the `elastic` network to already exist (i.e. the ELK stack started at least once).
 - `src/MyApplication/MyApplication.sln` — the solution file.
 - `src/MyApplication/MyApplication.Api/` — ASP.NET Core Web API project (Presentation layer). Entry point: `Program.cs`. Uses attribute-routed controllers (`AddControllers()` / `MapControllers()`), not minimal-API endpoints — all external call handlers live in `Controllers/`, with their response models in `Models/`.
+  - Logging is configured in `Program.cs` via `Serilog` (`Serilog.AspNetCore`) + `Elastic.Serilog.Sinks`: writes to console and ships ECS-formatted logs directly to the Elasticsearch data stream `logs-myapplication-api-{environment}`. Elasticsearch endpoint comes from `Elasticsearch:Uri` (`appsettings.json`) / `Elasticsearch__Uri` env var.
 
 ## Working with this repo
 
