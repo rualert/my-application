@@ -11,6 +11,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - Elasticsearch__Uri=http://elasticsearch:9200
+      - OpenTelemetry__OtlpEndpoint=http://apm-server:8200
     ports:
       - "8080:8080"
     networks:

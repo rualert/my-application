@@ -1,6 +1,8 @@
 using Elastic.Ingest.Elasticsearch.DataStreams;
 using Elastic.Serilog.Sinks;
 using MyApplication.Application.WeatherForecasts;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +27,26 @@ builder.Host.UseSerilog((context, _, loggerConfiguration) =>
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddScoped<IWeatherForecastService, WeatherForecastService>();
+
+// Distributed tracing: every incoming request and every outgoing HTTP call made with
+// HttpClient gets a W3C trace-context Activity, propagated across services via the
+// `traceparent` header. Serilog/ECS already stamps log lines with the same trace.id/span.id,
+// so logs and traces correlate automatically. When adding a database client or a message
+// queue client, register matching OpenTelemetry instrumentation for it here too.
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation();
+
+        var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            tracing.AddOtlpExporter(options => options.Endpoint = new Uri(otlpEndpoint));
+        }
+    });
 
 var app = builder.Build();
 
