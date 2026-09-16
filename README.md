@@ -1,120 +1,119 @@
 # MyApplication
 
-ASP.NET Core Web API (.NET 10). Logs are written via [Serilog](https://serilog.net/) directly to Elasticsearch (ECS format), and every request is distributed-traced via [OpenTelemetry](https://opentelemetry.io/) — both explorable in Kibana.
+ASP.NET Core Web API (.NET 10). Логи пишутся через [Serilog](https://serilog.net/) напрямую в Elasticsearch (формат ECS), а каждый запрос трассируется через [OpenTelemetry](https://opentelemetry.io/) — и то, и другое можно смотреть в Kibana.
 
-The application and the logging/tracing environment (Elasticsearch + Kibana + APM Server) are deployed as **separate, independent Docker Compose stacks**, each with its own image(s):
+Приложение и окружение для логов/трейсинга (Elasticsearch + Kibana + APM Server) разворачиваются как **отдельные, независимые Docker Compose стеки**, каждый со своим образом(-ами):
 
-- `docker-compose.elk.yml` — the **environment**: Elasticsearch + Kibana + APM Server.
-- `docker-compose.app.yml` — the **application**: `myapplication-api` only.
+- `docker-compose.elk.yml` — **окружение**: Elasticsearch + Kibana + APM Server.
+- `docker-compose.app.yml` — **приложение**: только `myapplication-api`.
 
-They communicate over a shared external Docker network (`elastic`). Either stack can be built, deployed, restarted, or torn down without touching the other, as long as the network exists.
+Они взаимодействуют через общую внешнюю Docker-сеть (`elastic`). Любой из стеков можно собрать, развернуть, перезапустить или остановить, не трогая другой — при условии, что сеть уже существует.
 
-## Requirements
+## Требования
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) — for running the API locally
-- [Docker](https://www.docker.com/) + Docker Compose — for running in containers
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) — для локального запуска API
+- [Docker](https://www.docker.com/) + Docker Compose — для запуска в контейнерах
 
-## 1. Start the environment (Elasticsearch + Kibana)
+## 1. Запуск окружения (Elasticsearch + Kibana)
 
-From the repository root:
+Из корня репозитория:
 
 ```bash
 docker compose -f docker-compose.elk.yml up -d
 ```
 
-This creates the external `elastic` network (if it doesn't exist yet) and starts:
+Эта команда создаёт внешнюю сеть `elastic` (если её ещё нет) и запускает:
 
 - **Elasticsearch** — `http://localhost:9200`
 - **Kibana** — `http://localhost:5601`
-- **APM Server** — `http://localhost:8200` (receives traces over OTLP and writes them to Elasticsearch)
+- **APM Server** — `http://localhost:8200` (принимает трейсы по OTLP и пишет их в Elasticsearch)
 
-This stack has no dependency on the application and can be deployed/updated on its own.
+Этот стек никак не зависит от приложения и может разворачиваться/обновляться сам по себе.
 
 ```bash
 docker compose -f docker-compose.elk.yml ps
-docker compose -f docker-compose.elk.yml down      # stop, keep data
-docker compose -f docker-compose.elk.yml down -v   # stop and wipe Elasticsearch data
+docker compose -f docker-compose.elk.yml down      # остановить, данные сохраняются
+docker compose -f docker-compose.elk.yml down -v   # остановить и стереть данные Elasticsearch
 ```
 
-## 2. Run the API
+## 2. Запуск API
 
-### Option A — locally with `dotnet run`
+### Вариант A — локально через `dotnet run`
 
-Requires the environment stack (step 1) to be up, since the app ships logs to Elasticsearch at `http://localhost:9200` and traces to APM Server at `http://localhost:8200` by default (see `Elasticsearch:Uri` / `OpenTelemetry:OtlpEndpoint` in `appsettings.json`).
+Требует, чтобы окружение (шаг 1) было поднято, так как приложение по умолчанию отправляет логи в Elasticsearch на `http://localhost:9200` и трейсы в APM Server на `http://localhost:8200` (см. `Elasticsearch:Uri` / `OpenTelemetry:OtlpEndpoint` в `appsettings.json`).
 
-From `src/MyApplication/`:
+Из `src/MyApplication/`:
 
 ```bash
 dotnet restore
 dotnet run --project MyApplication.Api
 ```
 
-The API will be available at `http://localhost:5184` (see `MyApplication.Api/Properties/launchSettings.json` for the full list of profiles/ports). Logs go to the console and to the `logs-myapplication-api-development` data stream in Elasticsearch.
+API будет доступен по адресу `http://localhost:5184` (полный список профилей/портов — в `MyApplication.Api/Properties/launchSettings.json`). Логи идут в консоль и в data stream `logs-myapplication-api-development` в Elasticsearch.
 
-### Option B — as its own Docker Compose stack (independent of the environment)
+### Вариант B — отдельным Docker Compose стеком (независимо от окружения)
 
-Requires the `elastic` network to already exist, i.e. the environment stack (step 1) must be started at least once first.
+Требует, чтобы сеть `elastic` уже существовала, т.е. окружение (шаг 1) должно быть запущено хотя бы один раз ранее.
 
-From the repository root:
+Из корня репозитория:
 
 ```bash
 docker compose -f docker-compose.app.yml up -d --build
 ```
 
-The API will be available at `http://localhost:8080`, joins the `elastic` network, ships logs to `elasticsearch:9200` (`logs-myapplication-api-production`), and ships traces to `apm-server:8200`.
+API будет доступен по адресу `http://localhost:8080`, подключается к сети `elastic`, отправляет логи на `elasticsearch:9200` (`logs-myapplication-api-production`) и трейсы на `apm-server:8200`.
 
 ```bash
 docker compose -f docker-compose.app.yml logs -f myapplication-api
-docker compose -f docker-compose.app.yml down     # stop/remove the app only, environment keeps running
-docker compose -f docker-compose.app.yml up -d --build   # rebuild/redeploy the app only
+docker compose -f docker-compose.app.yml down     # остановить/удалить только приложение, окружение продолжает работать
+docker compose -f docker-compose.app.yml up -d --build   # пересобрать/передеплоить только приложение
 ```
 
-### Option C — single container via plain `docker` (no Compose, no logging stack)
+### Вариант C — один контейнер через обычный `docker` (без Compose, без стека логирования)
 
 ```bash
 docker build -t myapplication-api .
 docker run -d --name myapplication-api -p 8080:8080 myapplication-api
 ```
 
-Without an `Elasticsearch__Uri` pointing at a reachable cluster, log shipping to Elasticsearch will simply fail to connect (the app itself keeps running); logs are still visible via `docker logs -f myapplication-api`.
+Без `Elasticsearch__Uri`, указывающего на доступный кластер, отправка логов в Elasticsearch просто не будет подключаться (само приложение при этом продолжает работать); логи всё равно видны через `docker logs -f myapplication-api`.
 
-## Viewing logs in Kibana
+## Просмотр логов в Kibana
 
-Logs are written to the Elasticsearch data stream `logs-myapplication-api-<environment>` (e.g. `logs-myapplication-api-development` for local `dotnet run`, `logs-myapplication-api-production` when run via `docker-compose.app.yml`), in [Elastic Common Schema](https://www.elastic.co/guide/en/ecs/current/index.html) format.
+Логи пишутся в data stream Elasticsearch `logs-myapplication-api-<environment>` (например, `logs-myapplication-api-development` при локальном `dotnet run`, `logs-myapplication-api-production` при запуске через `docker-compose.app.yml`), в формате [Elastic Common Schema](https://www.elastic.co/guide/en/ecs/current/index.html).
 
-1. Open Kibana at `http://localhost:5601`.
-2. Go to **Stack Management → Data Views** (or **Discover**, which offers to create one for you) and create a data view/index pattern matching `logs-*` with `@timestamp` as the time field.
-3. Open **Discover** and select that data view to search and filter logs. Useful fields: `log.level`, `message`, `service.name`, `event.action`, `http.request.id`.
+1. Откройте Kibana по адресу `http://localhost:5601`.
+2. Перейдите в **Stack Management → Data Views** (или в **Discover**, который сам предложит создать data view) и создайте data view/index pattern по маске `logs-*` с полем времени `@timestamp`.
+3. Откройте **Discover** и выберите этот data view для поиска и фильтрации логов. Полезные поля: `log.level`, `message`, `service.name`, `event.action`, `http.request.id`.
 
-## Viewing traces in Kibana
+## Просмотр трейсов в Kibana
 
-Every incoming HTTP request gets a [W3C Trace Context](https://www.w3.org/TR/trace-context/) trace, and every outgoing `HttpClient` call the app makes (to Elasticsearch, to another service, etc.) becomes a child span of that same trace, propagated via the `traceparent` header — so a single trace ID lets you follow one logical request as it hops between systems and see how long each hop took.
+Каждый входящий HTTP-запрос получает трейс в формате [W3C Trace Context](https://www.w3.org/TR/trace-context/), а каждый исходящий вызов через `HttpClient` (к Elasticsearch, к другому сервису и т. д.) становится дочерним спаном этого же трейса — заголовок `traceparent` прокидывается автоматически. Таким образом по одному trace ID можно проследить, как один логический запрос перемещался между системами и сколько времени занял каждый переход.
 
-1. Open Kibana at `http://localhost:5601`.
-2. Go to **Observability → APM** to see services, transactions (e.g. `GET WeatherForecast`), throughput, and latency.
-3. Open a transaction to see its full waterfall — including any outgoing HTTP calls made while handling it, each with its own duration.
+1. Откройте Kibana по адресу `http://localhost:5601`.
+2. Перейдите в **Observability → APM**, чтобы увидеть сервисы, транзакции (например, `GET WeatherForecast`), throughput и latency.
+3. Откройте транзакцию, чтобы увидеть полный waterfall — включая все исходящие HTTP-вызовы, сделанные при её обработке, с их собственной длительностью.
 
-Log lines are stamped with the same `trace.id`/`span.id` as the trace (ECS auto-enrichment), so you can pivot from a log line in **Discover** straight to its trace in **APM**, or vice versa.
+Строки логов помечены тем же `trace.id`/`span.id`, что и трейс (автообогащение ECS), поэтому из строки лога в **Discover** можно перейти сразу к её трейсу в **APM**, и наоборот.
 
-## Logging and tracing configuration
+## Настройка логирования и трассировки
 
-Both are configured in `MyApplication.Api/Program.cs`:
+Обе настроены в `MyApplication.Api/Program.cs`:
 
-- **Logging** — `Serilog` + `Elastic.Serilog.Sinks`: writes structured logs to the console (visible via `docker logs` / the local terminal) and ships the same logs to Elasticsearch as ECS documents, into a data stream named `logs-myapplication-api-{environment}`. Endpoint: `Elasticsearch:Uri` in `appsettings.json` (defaults to `http://localhost:9200`), or the `Elasticsearch__Uri` environment variable (set to `http://elasticsearch:9200` in `docker-compose.app.yml`).
-- **Tracing** — `OpenTelemetry` with ASP.NET Core + `HttpClient` instrumentation, exported over OTLP to APM Server. Endpoint: `OpenTelemetry:OtlpEndpoint` in `appsettings.json` (defaults to `http://localhost:8200`), or the `OpenTelemetry__OtlpEndpoint` environment variable (set to `http://apm-server:8200` in `docker-compose.app.yml`). If unset/unreachable, tracing is simply skipped — the app doesn't fail.
+- **Логирование** — `Serilog` + `Elastic.Serilog.Sinks`: пишет структурированные логи в консоль (видны через `docker logs` / локальный терминал) и отправляет те же логи в Elasticsearch как ECS-документы, в data stream с именем `logs-myapplication-api-{environment}`. Адрес задаётся через `Elasticsearch:Uri` в `appsettings.json` (по умолчанию `http://localhost:9200`) или переменную окружения `Elasticsearch__Uri` (в `docker-compose.app.yml` указана как `http://elasticsearch:9200`).
+- **Трассировка** — `OpenTelemetry` с инструментацией ASP.NET Core и `HttpClient`, экспорт по OTLP в APM Server. Адрес задаётся через `OpenTelemetry:OtlpEndpoint` в `appsettings.json` (по умолчанию `http://localhost:8200`) или переменную окружения `OpenTelemetry__OtlpEndpoint` (в `docker-compose.app.yml` указана как `http://apm-server:8200`). Если адрес не задан/недоступен, трассировка просто отключается — приложение не падает.
 
-**When adding a new outbound integration (a database client, a message queue client/consumer, a call to another HTTP service), register the matching OpenTelemetry instrumentation for it at the same time** (e.g. `OpenTelemetry.Instrumentation.EntityFrameworkCore`/`Npgsql.OpenTelemetry` for Postgres, or the relevant instrumentation package for the queue client), so the new hop keeps showing up in the same trace instead of becoming a blind spot.
+**При добавлении новой исходящей интеграции (клиент БД, продюсер/консьюмер очереди сообщений, вызов другого HTTP-сервиса) нужно в том же изменении подключить соответствующую OpenTelemetry-инструментацию** (например, `OpenTelemetry.Instrumentation.EntityFrameworkCore`/`Npgsql.OpenTelemetry` для Postgres или подходящий пакет инструментации для клиента очереди), чтобы новый переход между системами не стал слепой зоной в трейсе.
 
-## Business logic documentation
+## Документация по бизнес-логике
 
-The `docs/` folder is a separate [Docusaurus](https://docusaurus.io/) site documenting the application's **business logic** (use cases, business rules, API contracts) as a browsable tree — separate from this README, which covers how to build/run/deploy.
+Папка `docs/` — это отдельный сайт на [Docusaurus](https://docusaurus.io/), документирующий **бизнес-логику** приложения (сценарии использования, бизнес-правила, контракты API) в виде дерева статей — отдельно от этого README, который описывает сборку/запуск/деплой.
 
 ```bash
 cd docs
-npm install --global=false   # see docs/.npmrc: some environments default `npm install` to a global/misconfigured location
-npm start                    # dev server with live reload, http://localhost:3000
-npm run build                # static site into docs/build/
+npm install --global=false   # см. docs/.npmrc: в некоторых окружениях npm install по умолчанию ставит пакеты глобально/не туда
+npm start                    # дев-сервер с live reload, http://localhost:3000
+npm run build                # статическая сборка сайта в docs/build/
 ```
 
-It's also published automatically at **https://rualert.github.io/my-application/** — the `.github/workflows/deploy-docs.yml` workflow builds and deploys `docs/` to GitHub Pages on every push to `master` that touches `docs/**` (or can be triggered manually via the Actions tab). Requires GitHub Pages to be enabled for this repo with **Settings → Pages → Source: GitHub Actions** (one-time setup, not something the workflow itself can do).
-
+Также сайт автоматически публикуется по адресу **https://rualert.github.io/my-application/** — workflow `.github/workflows/deploy-docs.yml` собирает и деплоит `docs/` в GitHub Pages при каждом пуше в `master`, затрагивающем `docs/**` (либо запускается вручную во вкладке Actions). Требует, чтобы в репозитории был включён GitHub Pages с **Settings → Pages → Source: GitHub Actions** (разовая настройка, сам workflow этого сделать не может).
