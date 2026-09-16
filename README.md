@@ -116,3 +116,5 @@ npm start                    # dev server with live reload, http://localhost:300
 npm run build                # static site into docs/build/
 ```
 
+It's also published automatically at **https://rualert.github.io/my-application/** — the `.github/workflows/deploy-docs.yml` workflow builds and deploys `docs/` to GitHub Pages on every push to `master` that touches `docs/**` (or can be triggered manually via the Actions tab). Requires GitHub Pages to be enabled for this repo with **Settings → Pages → Source: GitHub Actions** (one-time setup, not something the workflow itself can do).
+

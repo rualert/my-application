@@ -8,7 +8,7 @@ const config = {
   favicon: 'img/favicon.svg',
 
   url: 'https://rualert.github.io',
-  baseUrl: '/my-application-docs/',
+  baseUrl: '/my-application/',
 
   organizationName: 'rualert',
   projectName: 'my-application',
