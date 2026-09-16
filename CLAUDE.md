@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-The solution `src/MyApplication/MyApplication.sln` currently has a single project: `MyApplication.Api`, an ASP.NET Core Web API (.NET 9) generated from the default template. There is no README, no test project, and no Application/Domain/Infrastructure projects yet — see the architecture rules below for how the solution should be structured as those are added.
+The solution `src/MyApplication/MyApplication.sln` currently has a single project: `MyApplication.Api`, an ASP.NET Core Web API (.NET 10) generated from the default template. There is no README, no test project, and no Application/Domain/Infrastructure projects yet — see the architecture rules below for how the solution should be structured as those are added.
 
 ## Structure
 
