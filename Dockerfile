@@ -6,6 +6,7 @@ WORKDIR /src
 COPY src/MyApplication/MyApplication.sln src/MyApplication/
 COPY src/MyApplication/MyApplication.Api/MyApplication.Api.csproj src/MyApplication/MyApplication.Api/
 COPY src/MyApplication/MyApplication.Application/MyApplication.Application.csproj src/MyApplication/MyApplication.Application/
+COPY src/MyApplication/MyApplication.Infrastructure/MyApplication.Infrastructure.csproj src/MyApplication/MyApplication.Infrastructure/
 RUN dotnet restore src/MyApplication/MyApplication.sln
 
 COPY src/MyApplication/ src/MyApplication/

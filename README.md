@@ -104,3 +104,15 @@ Both are configured in `MyApplication.Api/Program.cs`:
 - **Tracing** — `OpenTelemetry` with ASP.NET Core + `HttpClient` instrumentation, exported over OTLP to APM Server. Endpoint: `OpenTelemetry:OtlpEndpoint` in `appsettings.json` (defaults to `http://localhost:8200`), or the `OpenTelemetry__OtlpEndpoint` environment variable (set to `http://apm-server:8200` in `docker-compose.app.yml`). If unset/unreachable, tracing is simply skipped — the app doesn't fail.
 
 **When adding a new outbound integration (a database client, a message queue client/consumer, a call to another HTTP service), register the matching OpenTelemetry instrumentation for it at the same time** (e.g. `OpenTelemetry.Instrumentation.EntityFrameworkCore`/`Npgsql.OpenTelemetry` for Postgres, or the relevant instrumentation package for the queue client), so the new hop keeps showing up in the same trace instead of becoming a blind spot.
+
+## Business logic documentation
+
+The `docs/` folder is a separate [Docusaurus](https://docusaurus.io/) site documenting the application's **business logic** (use cases, business rules, API contracts) as a browsable tree — separate from this README, which covers how to build/run/deploy.
+
+```bash
+cd docs
+npm install --global=false   # see docs/.npmrc: some environments default `npm install` to a global/misconfigured location
+npm start                    # dev server with live reload, http://localhost:3000
+npm run build                # static site into docs/build/
+```
+
