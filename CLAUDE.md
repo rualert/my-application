@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-The solution `src/MyApplication/MyApplication.sln` currently has a single project: `MyApplication.Api`, an ASP.NET Core Web API (.NET 10) generated from the default template. There is no test project, and no Application/Domain/Infrastructure projects yet — see the architecture rules below for how the solution should be structured as those are added.
+The solution `src/MyApplication/MyApplication.sln` has two projects: `MyApplication.Api` (Presentation) and `MyApplication.Application` (Application layer). There is no test project, and no Domain/Infrastructure projects yet — see the architecture rules below for how the solution should be structured as those are added.
 
 ## Structure
 
@@ -14,8 +14,9 @@ The solution `src/MyApplication/MyApplication.sln` currently has a single projec
   - `docker-compose.elk.yml` — single-node Elasticsearch + Kibana (security disabled, dev-only). Owns/creates the `elastic` network.
   - `docker-compose.app.yml` — `myapplication-api` only. Requires the `elastic` network to already exist (i.e. the ELK stack started at least once).
 - `src/MyApplication/MyApplication.sln` — the solution file.
-- `src/MyApplication/MyApplication.Api/` — ASP.NET Core Web API project (Presentation layer). Entry point: `Program.cs`. Uses attribute-routed controllers (`AddControllers()` / `MapControllers()`), not minimal-API endpoints — all external call handlers live in `Controllers/`, with their response models in `Models/`.
+- `src/MyApplication/MyApplication.Api/` — ASP.NET Core Web API project (Presentation layer). Entry point: `Program.cs`, which wires up DI (registering `Application` layer services) and Serilog. Uses attribute-routed controllers (`AddControllers()` / `MapControllers()`), not minimal-API endpoints — all external call handlers live in `Controllers/`, calling into `MyApplication.Application` services/interfaces rather than containing business logic themselves. Depends on `MyApplication.Application`.
   - Logging is configured in `Program.cs` via `Serilog` (`Serilog.AspNetCore`) + `Elastic.Serilog.Sinks`: writes to console and ships ECS-formatted logs directly to the Elasticsearch data stream `logs-myapplication-api-{environment}`. Elasticsearch endpoint comes from `Elasticsearch:Uri` (`appsettings.json`) / `Elasticsearch__Uri` env var.
+- `src/MyApplication/MyApplication.Application/` — Application layer class library. Zero dependency on `MyApplication.Api` or any framework/web package. Organized in feature folders (e.g. `WeatherForecasts/`), each holding its entities/DTOs (e.g. `WeatherForecast.cs`), a port interface (e.g. `IWeatherForecastService.cs`), and the use-case implementation (e.g. `WeatherForecastService.cs`). Register new services in `MyApplication.Api/Program.cs`'s DI container.
 
 ## Working with this repo
 

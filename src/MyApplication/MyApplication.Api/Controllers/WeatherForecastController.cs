@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using MyApplication.Api.Models;
+using MyApplication.Application.WeatherForecasts;
 
 namespace MyApplication.Api.Controllers;
 
@@ -10,21 +10,24 @@ namespace MyApplication.Api.Controllers;
 [Route("[controller]")]
 public class WeatherForecastController : ControllerBase
 {
-    private static readonly string[] Summaries =
-    {
-        "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-    };
+    private readonly IWeatherForecastService _weatherForecastService;
 
+    /// <summary>
+    ///     Создаёт экземпляр контроллера с внедрённым сервисом прогнозов погоды.
+    /// </summary>
+    /// <param name="weatherForecastService">Сервис, предоставляющий прогнозы погоды.</param>
+    public WeatherForecastController(IWeatherForecastService weatherForecastService)
+    {
+        _weatherForecastService = weatherForecastService;
+    }
+
+    /// <summary>
+    ///     Возвращает прогноз погоды.
+    /// </summary>
+    /// <returns>Коллекция прогнозов погоды.</returns>
     [HttpGet(Name = "GetWeatherForecast")]
     public IEnumerable<WeatherForecast> Get()
     {
-        return Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    Summaries[Random.Shared.Next(Summaries.Length)]
-                ))
-            .ToArray();
+        return _weatherForecastService.GetForecasts();
     }
 }

@@ -1,4 +1,4 @@
-namespace MyApplication.Api.Models;
+namespace MyApplication.Application.WeatherForecasts;
 
 public record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
