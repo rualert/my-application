@@ -1,7 +1,7 @@
 # Стек "база данных": PostgreSQL, разворачивается/перезапускается независимо от приложения.
-# Требует, чтобы сеть `elastic` уже существовала (создаётся docker-compose.elk.yml) —
+# Требует, чтобы сеть `elastic` уже существовала (создаётся ci/docker-compose.elk.yml) —
 # это просто одна общая сеть для всех стеков, несмотря на "эластиковое" название.
-# Запуск: docker compose -f docker-compose.db.yml up -d
+# Запуск (из корня репозитория): docker compose -f ci/docker-compose.db.yml up -d
 
 services:
   postgres:

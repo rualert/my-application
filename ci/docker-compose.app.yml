@@ -1,15 +1,17 @@
 # Стек "приложение": только API, разворачивается независимо от окружений ELK/БД.
-# Требует, чтобы сеть `elastic` уже существовала (создаётся docker-compose.elk.yml).
-# Также требует, чтобы сервис `postgres` из docker-compose.db.yml был доступен по
+# Требует, чтобы сеть `elastic` уже существовала (создаётся ci/docker-compose.elk.yml).
+# Также требует, чтобы сервис `postgres` из ci/docker-compose.db.yml был доступен по
 # этой сети до старта — в отличие от логов/трейсинга, приложение применяет
 # миграции EF Core при старте и не запустится, если Postgres ещё не поднят.
-# Запуск: docker compose -f docker-compose.app.yml up -d --build
+# Запуск (из корня репозитория): docker compose -f ci/docker-compose.app.yml up -d --build
 
 services:
   myapplication-api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      # Контекст — корень репозитория (COPY в Dockerfile ожидает пути вида
+      # src/MyApplication/...), а не ci/, где лежит сам этот compose-файл.
+      context: ..
+      dockerfile: ci/Dockerfile
     container_name: myapplication-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
