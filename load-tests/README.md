@@ -8,11 +8,15 @@
 
 - `scenarios/notes-list.js` — `GET /Notes` (список заметок).
 - `scenarios/notes-get-by-id.js` — `GET /Notes/{id}` (заметка по идентификатору).
+- `scenarios/notes-create.js` — `POST /Notes` (создание заметки). В отличие от
+  двух других, здесь сама нагрузка и есть запись в базу — `SEED_COUNT` лишь
+  создаёт исходный объём данных перед стартом (запись может замедляться с
+  ростом таблицы/индексов), а не является предметом теста.
 
-Оба перед стартом нагрузки сами создают `SEED_COUNT` заметок через `POST /Notes`
-(`setup()`), чтобы тестировать не пустую базу, а реалистичный объём данных.
-Запросы отправляются пачками через `http.batch()` (`lib/seed.js`), а не по
-одному — иначе при большом `SEED_COUNT` (тысячи заметок) `setup()` не
+Все три перед стартом нагрузки сами создают `SEED_COUNT` заметок через
+`POST /Notes` (`setup()`), чтобы тестировать не пустую базу, а реалистичный
+объём данных. Запросы отправляются пачками через `http.batch()` (`lib/seed.js`),
+а не по одному — иначе при большом `SEED_COUNT` (тысячи заметок) `setup()` не
 укладывается в таймаут k6 (`setupTimeout`, поднят до 5 минут в `options`
 каждого сценария) и весь прогон падает с `setup() execution timed out`, так
 и не начав генерировать нагрузку — снаружи это выглядит так, будто
@@ -57,7 +61,7 @@ InfluxDB нет retention-политики "хранить вечно"). Thresho
 записываются вместе с RPS специально: одна и та же цифра RPS означает разное
 в зависимости от того, при каких порогах и объёме данных она получена, а
 они могут меняться между прогонами — см. `results/notes-list.md`,
-`results/notes-get-by-id.md`.
+`results/notes-get-by-id.md`, `results/notes-create.md`.
 
 ## Изолированная БД для прогона
 
@@ -104,6 +108,7 @@ docker compose -f docker-compose.load-tests.yml up -d
 cd load-tests/scripts
 ./Invoke-NotesListScenario.ps1
 ./Invoke-NotesGetByIdScenario.ps1
+./Invoke-NotesCreateScenario.ps1
 ```
 
 Тонкие обёртки над `Invoke-K6Scenario.ps1`, который сам поднимает изолированный
@@ -138,6 +143,13 @@ docker run --rm -i \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
   grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-get-by-id.js
+
+docker run --rm -i \
+  --network myapplication_default \
+  -e BASE_URL=http://host.docker.internal:8081 \
+  -v "$(pwd)/load-tests:/load-tests" \
+  -w /load-tests \
+  grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-create.js
 ```
 
 `host.docker.internal` — адрес хоста из контейнера k6 (работает в Docker
