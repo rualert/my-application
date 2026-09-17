@@ -6,20 +6,20 @@
 .DESCRIPTION
     Общая логика для всех Invoke-*Scenario.ps1 — конкретные скрипты сценариев
     просто вызывают его с именем нужного файла. Предполагает, что уже поднят
-    docker-compose.load-tests.yml (InfluxDB + Grafana, см. корневой README.md
+    ci/docker-compose.load-tests.yml (InfluxDB + Grafana, см. корневой README.md
     и load-tests/README.md) — сам этот скрипт поднимает/удаляет отдельный
-    изолированный стек "БД + приложение" (docker-compose.load-tests-db.yml)
+    изолированный стек "БД + приложение" (ci/docker-compose.load-tests-db.yml)
     вокруг прогона k6, чтобы SEED_COUNT (тысячи тестовых заметок) не засорял
-    основную dev-базу (docker-compose.db.yml). См. -KeepDb, если вместо этого
-    нужно посмотреть в базу после прогона.
+    основную dev-базу (ci/docker-compose.db.yml). См. -KeepDb, если вместо
+    этого нужно посмотреть в базу после прогона.
 
 .PARAMETER ScenarioFile
     Имя файла сценария внутри load-tests/scenarios/ (например, notes-list.js).
 
 .PARAMETER AppPort
-    Хостовый порт изолированного инстанса приложения (docker-compose.load-tests-db.yml),
+    Хостовый порт изолированного инстанса приложения (ci/docker-compose.load-tests-db.yml),
     поднимаемого для этого прогона. По умолчанию — 8081, чтобы не конфликтовать
-    с обычным dev-инстансом на 8080 (docker-compose.app.yml).
+    с обычным dev-инстансом на 8080 (ci/docker-compose.app.yml).
 
 .PARAMETER BaseUrl
     Адрес API, доступный из контейнера k6. По умолчанию — изолированный
@@ -30,7 +30,7 @@
 
 .PARAMETER Network
     Docker-сеть, к которой подключается контейнер k6 — нужна, чтобы достучаться
-    до InfluxDB по имени контейнера. Сеть создаётся docker-compose.load-tests.yml.
+    до InfluxDB по имени контейнера. Сеть создаётся ci/docker-compose.load-tests.yml.
 
 .PARAMETER InfluxUrl
     Адрес InfluxDB для записи метрик (виден из сети $Network).
@@ -52,7 +52,7 @@
     Не удалять изолированный стек БД/приложения после прогона (по умолчанию
     удаляется всегда, вместе с томом данных) — полезно, чтобы после прогона
     вручную посмотреть, что осталось в базе. Удалить вручную потом:
-    docker compose -p myapplication-loadtest -f docker-compose.load-tests-db.yml down -v
+    docker compose -p myapplication-loadtest -f ci/docker-compose.load-tests-db.yml down -v
 
 .EXAMPLE
     ./Invoke-K6Scenario.ps1 -ScenarioFile notes-list.js
@@ -85,15 +85,15 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $loadTestsPath = Resolve-Path (Join-Path $PSScriptRoot '..')
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
-$loadTestDbCompose = Join-Path $repoRoot 'docker-compose.load-tests-db.yml'
+$loadTestDbCompose = Join-Path $repoRoot 'ci/docker-compose.load-tests-db.yml'
 # Отдельное имя проекта (-p) — чтобы этот стек жил в своей сети/неймспейсе
 # контейнеров, а не в общем myapplication_default вместе с dev-стеками.
 $composeArgs = @('-p', 'myapplication-loadtest', '-f', $loadTestDbCompose)
 
-Write-Host "Starting isolated DB + app stack for this run (docker-compose.load-tests-db.yml)..."
+Write-Host "Starting isolated DB + app stack for this run (ci/docker-compose.load-tests-db.yml)..."
 docker compose @composeArgs up -d --build
 if ($LASTEXITCODE -ne 0) {
-    throw "docker compose up failed for docker-compose.load-tests-db.yml (exit code $LASTEXITCODE)"
+    throw "docker compose up failed for ci/docker-compose.load-tests-db.yml (exit code $LASTEXITCODE)"
 }
 
 try {
@@ -136,7 +136,7 @@ try {
     $k6ExitCode = $LASTEXITCODE
 } finally {
     if ($KeepDb) {
-        Write-Host "-KeepDb passed - leaving docker-compose.load-tests-db.yml up. Remove manually with:"
+        Write-Host "-KeepDb passed - leaving ci/docker-compose.load-tests-db.yml up. Remove manually with:"
         Write-Host "  docker compose -p myapplication-loadtest -f `"$loadTestDbCompose`" down -v"
     } else {
         Write-Host "Tearing down the isolated DB + app stack (with its data volume)..."

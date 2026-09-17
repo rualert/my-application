@@ -1,5 +1,5 @@
 # Стек "окружение": Elasticsearch + Kibana, разворачивается независимо от приложения.
-# Запуск: docker compose -f docker-compose.elk.yml up -d
+# Запуск (из корня репозитория): docker compose -f ci/docker-compose.elk.yml up -d
 
 services:
   elasticsearch:

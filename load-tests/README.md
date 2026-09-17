@@ -66,30 +66,30 @@ InfluxDB нет retention-политики "хранить вечно"). Thresho
 ## Изолированная БД для прогона
 
 `SEED_COUNT` создаёт тысячи тестовых заметок — если гонять нагрузку на
-обычный dev-стек (`docker-compose.db.yml` + `docker-compose.app.yml`), эти
+обычный dev-стек (`ci/docker-compose.db.yml` + `ci/docker-compose.app.yml`), эти
 заметки останутся там навсегда и засорят базу, которой пользуются
 разработка/`SmokeTests`/что угодно ещё. Поэтому для load-тестов поднимается
 **отдельный, полностью изолированный стек** — своя БД и свой инстанс
-приложения (`docker-compose.load-tests-db.yml`, порты 5433/8081, чтобы не
+приложения (`ci/docker-compose.load-tests-db.yml`, порты 5433/8081, чтобы не
 конфликтовать с dev-стеком на 5432/8080) — который живёт ровно на время
 одного прогона.
 
 **PowerShell-скрипты (`load-tests/scripts/`) делают это автоматически**:
 поднимают стек, ждут готовности приложения, гоняют сценарий, затем удаляют
 стек вместе с томом данных (`docker compose ... down -v`) — даже если сам
-прогон упал с ошибкой. Поэтому для них `docker-compose.db.yml` /
-`docker-compose.app.yml` (обычный dev-стек) **не требуются вообще** — нужен
-только `docker-compose.load-tests.yml` (шаг 1 ниже). Посмотреть, что осталось
+прогон упал с ошибкой. Поэтому для них `ci/docker-compose.db.yml` /
+`ci/docker-compose.app.yml` (обычный dev-стек) **не требуются вообще** — нужен
+только `ci/docker-compose.load-tests.yml` (шаг 1 ниже). Посмотреть, что осталось
 в изолированной базе после прогона (не удаляя её сразу) — флаг `-KeepDb`,
 удалить вручную потом:
-`docker compose -p myapplication-loadtest -f docker-compose.load-tests-db.yml down -v`.
+`docker compose -p myapplication-loadtest -f ci/docker-compose.load-tests-db.yml down -v`.
 
 ## Запуск
 
 ### 1. Поднять InfluxDB + Grafana для результатов
 
 ```bash
-docker compose -f docker-compose.load-tests.yml up -d
+docker compose -f ci/docker-compose.load-tests.yml up -d
 ```
 
 Создаёт отдельный стек (не зависит от окружения приложения):
@@ -121,12 +121,12 @@ cd load-tests/scripts
 
 **В отличие от варианта A, изолированный стек здесь сам себя не поднимает и
 не удаляет** — либо поднимите его вручную (`docker compose -p myapplication-loadtest
--f docker-compose.load-tests-db.yml up -d --build`, порт приложения — 8081,
+-f ci/docker-compose.load-tests-db.yml up -d --build`, порт приложения — 8081,
 не забудьте потом `down -v`), либо явно нацельтесь на обычный dev-стек,
 понимая, что `SEED_COUNT` останется там навсегда.
 
 Подключенный к сети стека из шага 1 (`myapplication_default` — имя сети по
-умолчанию для `docker-compose.load-tests.yml` в этом репозитории; проверить
+умолчанию для `ci/docker-compose.load-tests.yml` в этом репозитории; проверить
 точное имя: `docker network ls`):
 
 ```bash
@@ -156,7 +156,7 @@ docker run --rm -i \
 Desktop на Windows/Mac; на Linux вместо этого добавьте `--add-host=host.docker.internal:host-gateway`).
 
 Если k6 установлен локально — то же самое, без Docker (InfluxDB тогда доступен
-на `localhost:8086`, как опубликовано в `docker-compose.load-tests.yml`):
+на `localhost:8086`, как опубликовано в `ci/docker-compose.load-tests.yml`):
 
 ```bash
 BASE_URL=http://localhost:8081 k6 run --out influxdb=http://localhost:8086/k6 load-tests/scenarios/notes-list.js
@@ -164,8 +164,11 @@ BASE_URL=http://localhost:8081 k6 run --out influxdb=http://localhost:8086/k6 lo
 
 ### 3. Посмотреть результаты
 
-Откройте `http://localhost:3000/d/afyik1gc1tekge/k6-load-testing-results` —
-графики RPS, латентности и виртуальных пользователей по времени прогона.
+Откройте `http://localhost:3000` → **Dashboards** → **k6 Load Testing Results**
+(Grafana не хранит свои данные в томе — только InfluxDB, см. `ci/docker-compose.load-tests.yml`
+— поэтому конкретный URL дашборда `/d/<uid>/...` каждый раз после пересоздания
+контейнера меняется; открывайте через список дашбордов, а не по старой ссылке).
+Графики RPS, латентности и виртуальных пользователей по времени прогона.
 Разброс задержки в момент, когда p95 начинает уходить вверх, и совпадает по
 времени со ступенью в `STAGE_TARGETS`/`STAGE_DURATION`, — это и есть искомый
 максимальный RPS.

@@ -4,11 +4,11 @@ ASP.NET Core Web API (.NET 10). Логи пишутся через [Serilog](htt
 
 Приложение и его окружение (логи/трейсинг, база данных) разворачиваются как **отдельные, независимые Docker Compose стеки**, каждый со своим образом(-ами):
 
-- `docker-compose.elk.yml` — **логи и трейсинг**: Elasticsearch + Kibana + APM Server.
-- `docker-compose.db.yml` — **база данных**: PostgreSQL.
-- `docker-compose.app.yml` — **приложение**: только `myapplication-api`.
+- `ci/docker-compose.elk.yml` — **логи и трейсинг**: Elasticsearch + Kibana + APM Server.
+- `ci/docker-compose.db.yml` — **база данных**: PostgreSQL.
+- `ci/docker-compose.app.yml` — **приложение**: только `myapplication-api`.
 
-Они взаимодействуют через общую внешнюю Docker-сеть (`elastic`) — сеть создаётся первым из стеков, `docker-compose.elk.yml`. Любой из стеков можно собрать, развернуть, перезапустить или остановить, не трогая другие — при условии, что сеть уже существует. Есть одно исключение: в отличие от логов/трейсов (которые просто отключаются, если недоступны), при старте приложение применяет миграции EF Core к базе, поэтому PostgreSQL должен быть поднят и доступен **до** запуска приложения — иначе оно не стартует.
+Они взаимодействуют через общую внешнюю Docker-сеть (`elastic`) — сеть создаётся первым из стеков, `ci/docker-compose.elk.yml`. Любой из стеков можно собрать, развернуть, перезапустить или остановить, не трогая другие — при условии, что сеть уже существует. Есть одно исключение: в отличие от логов/трейсов (которые просто отключаются, если недоступны), при старте приложение применяет миграции EF Core к базе, поэтому PostgreSQL должен быть поднят и доступен **до** запуска приложения — иначе оно не стартует.
 
 ## Требования
 
@@ -20,7 +20,7 @@ ASP.NET Core Web API (.NET 10). Логи пишутся через [Serilog](htt
 Из корня репозитория:
 
 ```bash
-docker compose -f docker-compose.elk.yml up -d
+docker compose -f ci/docker-compose.elk.yml up -d
 ```
 
 Эта команда создаёт внешнюю сеть `elastic` (если её ещё нет) и запускает:
@@ -32,9 +32,9 @@ docker compose -f docker-compose.elk.yml up -d
 Этот стек никак не зависит от приложения и может разворачиваться/обновляться сам по себе.
 
 ```bash
-docker compose -f docker-compose.elk.yml ps
-docker compose -f docker-compose.elk.yml down      # остановить, данные сохраняются
-docker compose -f docker-compose.elk.yml down -v   # остановить и стереть данные Elasticsearch
+docker compose -f ci/docker-compose.elk.yml ps
+docker compose -f ci/docker-compose.elk.yml down      # остановить, данные сохраняются
+docker compose -f ci/docker-compose.elk.yml down -v   # остановить и стереть данные Elasticsearch
 ```
 
 ## 2. Запуск базы данных (PostgreSQL)
@@ -42,15 +42,15 @@ docker compose -f docker-compose.elk.yml down -v   # остановить и с�
 Требует, чтобы сеть `elastic` уже существовала (создаётся шагом 1).
 
 ```bash
-docker compose -f docker-compose.db.yml up -d
+docker compose -f ci/docker-compose.db.yml up -d
 ```
 
-Поднимает PostgreSQL на `localhost:5432` (база `myapplication`, пользователь/пароль `myapplication`/`myapplication` — см. `docker-compose.db.yml`). Схему создавать не нужно — приложение само применяет миграции EF Core при старте.
+Поднимает PostgreSQL на `localhost:5432` (база `myapplication`, пользователь/пароль `myapplication`/`myapplication` — см. `ci/docker-compose.db.yml`). Схему создавать не нужно — приложение само применяет миграции EF Core при старте.
 
 ```bash
-docker compose -f docker-compose.db.yml ps
-docker compose -f docker-compose.db.yml down      # остановить, данные сохраняются
-docker compose -f docker-compose.db.yml down -v   # остановить и стереть данные Postgres
+docker compose -f ci/docker-compose.db.yml ps
+docker compose -f ci/docker-compose.db.yml down      # остановить, данные сохраняются
+docker compose -f ci/docker-compose.db.yml down -v   # остановить и стереть данные Postgres
 ```
 
 ## 3. Запуск API
@@ -77,21 +77,21 @@ API будет доступен по адресу `http://localhost:5184` (по�
 Из корня репозитория:
 
 ```bash
-docker compose -f docker-compose.app.yml up -d --build
+docker compose -f ci/docker-compose.app.yml up -d --build
 ```
 
 API будет доступен по адресу `http://localhost:8080`, подключается к сети `elastic`, отправляет логи на `elasticsearch:9200` (`logs-myapplication-api-production`), трейсы на `apm-server:8200` и подключается к БД на `postgres:5432`.
 
 ```bash
-docker compose -f docker-compose.app.yml logs -f myapplication-api
-docker compose -f docker-compose.app.yml down     # остановить/удалить только приложение, окружение продолжает работать
-docker compose -f docker-compose.app.yml up -d --build   # пересобрать/передеплоить только приложение
+docker compose -f ci/docker-compose.app.yml logs -f myapplication-api
+docker compose -f ci/docker-compose.app.yml down     # остановить/удалить только приложение, окружение продолжает работать
+docker compose -f ci/docker-compose.app.yml up -d --build   # пересобрать/передеплоить только приложение
 ```
 
 ### Вариант C — один контейнер через обычный `docker` (без Compose, без стека логирования)
 
 ```bash
-docker build -t myapplication-api .
+docker build -t myapplication-api -f ci/Dockerfile .
 docker run -d --name myapplication-api -p 8080:8080 \
   -e ConnectionStrings__Notes="Host=host.docker.internal;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication" \
   myapplication-api
@@ -101,7 +101,7 @@ docker run -d --name myapplication-api -p 8080:8080 \
 
 ## Просмотр логов в Kibana
 
-Логи пишутся в data stream Elasticsearch `logs-myapplication-api-<environment>` (например, `logs-myapplication-api-development` при локальном `dotnet run`, `logs-myapplication-api-production` при запуске через `docker-compose.app.yml`), в формате [Elastic Common Schema](https://www.elastic.co/guide/en/ecs/current/index.html).
+Логи пишутся в data stream Elasticsearch `logs-myapplication-api-<environment>` (например, `logs-myapplication-api-development` при локальном `dotnet run`, `logs-myapplication-api-production` при запуске через `ci/docker-compose.app.yml`), в формате [Elastic Common Schema](https://www.elastic.co/guide/en/ecs/current/index.html).
 
 1. Откройте Kibana по адресу `http://localhost:5601`.
 2. Перейдите в **Stack Management → Data Views** (или в **Discover**, который сам предложит создать data view) и создайте data view/index pattern по маске `logs-*` с полем времени `@timestamp`.
@@ -121,14 +121,14 @@ docker run -d --name myapplication-api -p 8080:8080 \
 
 Обе настроены в `MyApplication.Api/Program.cs`:
 
-- **Логирование** — `Serilog` + `Elastic.Serilog.Sinks`: пишет структурированные логи в консоль (видны через `docker logs` / локальный терминал) и отправляет те же логи в Elasticsearch как ECS-документы, в data stream с именем `logs-myapplication-api-{environment}`. Адрес задаётся через `Elasticsearch:Uri` в `appsettings.json` (по умолчанию `http://localhost:9200`) или переменную окружения `Elasticsearch__Uri` (в `docker-compose.app.yml` указана как `http://elasticsearch:9200`).
-- **Трассировка** — `OpenTelemetry` с инструментацией ASP.NET Core и `HttpClient`, экспорт по OTLP в APM Server. Адрес задаётся через `OpenTelemetry:OtlpEndpoint` в `appsettings.json` (по умолчанию `http://localhost:8200`) или переменную окружения `OpenTelemetry__OtlpEndpoint` (в `docker-compose.app.yml` указана как `http://apm-server:8200`). Если адрес не задан/недоступен, трассировка просто отключается — приложение не падает.
+- **Логирование** — `Serilog` + `Elastic.Serilog.Sinks`: пишет структурированные логи в консоль (видны через `docker logs` / локальный терминал) и отправляет те же логи в Elasticsearch как ECS-документы, в data stream с именем `logs-myapplication-api-{environment}`. Адрес задаётся через `Elasticsearch:Uri` в `appsettings.json` (по умолчанию `http://localhost:9200`) или переменную окружения `Elasticsearch__Uri` (в `ci/docker-compose.app.yml` указана как `http://elasticsearch:9200`).
+- **Трассировка** — `OpenTelemetry` с инструментацией ASP.NET Core и `HttpClient`, экспорт по OTLP в APM Server. Адрес задаётся через `OpenTelemetry:OtlpEndpoint` в `appsettings.json` (по умолчанию `http://localhost:8200`) или переменную окружения `OpenTelemetry__OtlpEndpoint` (в `ci/docker-compose.app.yml` указана как `http://apm-server:8200`). Если адрес не задан/недоступен, трассировка просто отключается — приложение не падает.
 
 **При добавлении новой исходящей интеграции (клиент БД, продюсер/консьюмер очереди сообщений, вызов другого HTTP-сервиса) нужно в том же изменении подключить соответствующую OpenTelemetry-инструментацию** (например, `OpenTelemetry.Instrumentation.EntityFrameworkCore`/`Npgsql.OpenTelemetry` для Postgres или подходящий пакет инструментации для клиента очереди), чтобы новый переход между системами не стал слепой зоной в трейсе.
 
 ## База данных (PostgreSQL / EF Core)
 
-Приложение хранит данные (сейчас — заметки, `src/MyApplication/MyApplication.Infrastructure/Notes/`) в PostgreSQL через EF Core (`Npgsql.EntityFrameworkCore.PostgreSQL`). Строка подключения задаётся через `ConnectionStrings:Notes` в `appsettings.json` (по умолчанию `localhost:5432`) или переменную окружения `ConnectionStrings__Notes` (в `docker-compose.app.yml` указана как `postgres:5432`).
+Приложение хранит данные (сейчас — заметки, `src/MyApplication/MyApplication.Infrastructure/Notes/`) в PostgreSQL через EF Core (`Npgsql.EntityFrameworkCore.PostgreSQL`). Строка подключения задаётся через `ConnectionStrings:Notes` в `appsettings.json` (по умолчанию `localhost:5432`) или переменную окружения `ConnectionStrings__Notes` (в `ci/docker-compose.app.yml` указана как `postgres:5432`).
 
 При старте приложение само применяет непримененные миграции (`Database.MigrateAsync()` в `Program.cs`) — отдельно накатывать схему вручную не нужно, но PostgreSQL должен быть доступен на момент старта.
 
@@ -177,4 +177,4 @@ dotnet test
 
 ## Нагрузочное тестирование
 
-Сценарии на [k6](https://k6.io/) в `load-tests/` (отдельный от `MyApplication.Tests` JS-тулинг, по аналогии с `docs/`) — ищут максимальный RPS, который держит сервис, по одному сценарию на операцию (`GET /Notes`, `GET /Notes/{id}`, `POST /Notes`). Результаты смотрятся в Grafana (дашборд поднимается вместе с `docker-compose.load-tests.yml`, InfluxDB — хранилище метрик k6). Подробности и команды запуска — в [`load-tests/README.md`](load-tests/README.md).
+Сценарии на [k6](https://k6.io/) в `load-tests/` (отдельный от `MyApplication.Tests` JS-тулинг, по аналогии с `docs/`) — ищут максимальный RPS, который держит сервис, по одному сценарию на операцию (`GET /Notes`, `GET /Notes/{id}`, `POST /Notes`). Результаты смотрятся в Grafana (дашборд поднимается вместе с `ci/docker-compose.load-tests.yml`, InfluxDB — хранилище метрик k6). Подробности и команды запуска — в [`load-tests/README.md`](load-tests/README.md).
