@@ -91,3 +91,9 @@ app.UseHttpsRedirection();
 app.MapControllers();
 
 app.Run();
+
+// Делает класс Program (генерируемый компилятором для top-level statements)
+// видимым для тестового проекта — нужен WebApplicationFactory<Program> в смок-тестах.
+public partial class Program
+{
+}

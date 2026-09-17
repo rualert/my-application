@@ -8,7 +8,7 @@ COPY src/MyApplication/MyApplication.Api/MyApplication.Api.csproj src/MyApplicat
 COPY src/MyApplication/MyApplication.Application/MyApplication.Application.csproj src/MyApplication/MyApplication.Application/
 COPY src/MyApplication/MyApplication.Infrastructure/MyApplication.Infrastructure.csproj src/MyApplication/MyApplication.Infrastructure/
 COPY src/MyApplication/MyApplication.Domain/MyApplication.Domain.csproj src/MyApplication/MyApplication.Domain/
-RUN dotnet restore src/MyApplication/MyApplication.sln
+RUN dotnet restore src/MyApplication/MyApplication.Api/MyApplication.Api.csproj
 
 COPY src/MyApplication/ src/MyApplication/
 RUN dotnet publish src/MyApplication/MyApplication.Api/MyApplication.Api.csproj \
