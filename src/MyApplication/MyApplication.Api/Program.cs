@@ -3,7 +3,6 @@ using Elastic.Serilog.Sinks;
 using Microsoft.EntityFrameworkCore;
 using MyApplication.Api;
 using MyApplication.Application.Notes;
-using MyApplication.Application.WeatherForecasts;
 using MyApplication.Infrastructure.Notes;
 using Npgsql;
 using OpenTelemetry.Resources;
@@ -32,7 +31,6 @@ builder.Host.UseSerilog((context, _, loggerConfiguration) =>
 // Подробнее про настройку OpenAPI: https://aka.ms/aspnet/openapi
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddScoped<IWeatherForecastService, WeatherForecastService>();
 
 // Глобальная обработка исключений: любое DomainException (из слоя Domain или
 // Application) маппится на 400 Bad Request, поэтому контроллерам не нужен свой
