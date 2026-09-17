@@ -174,3 +174,7 @@ dotnet test
 ```
 
 Для `ArchitectureTests`/`UseCasesTests` нужен только .NET SDK. Для `SmokeTests` дополнительно нужен запущенный Docker (поднимает временный PostgreSQL через Testcontainers).
+
+## Нагрузочное тестирование
+
+Сценарии на [k6](https://k6.io/) в `load-tests/` (отдельный от `MyApplication.Tests` JS-тулинг, по аналогии с `docs/`) — ищут максимальный RPS, который держит сервис, по одному сценарию на операцию (`GET /Notes`, `GET /Notes/{id}`, `POST /Notes`). Результаты смотрятся в Grafana (дашборд поднимается вместе с `docker-compose.load-tests.yml`, InfluxDB — хранилище метрик k6). Подробности и команды запуска — в [`load-tests/README.md`](load-tests/README.md).

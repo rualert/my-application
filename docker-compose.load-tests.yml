@@ -1,0 +1,42 @@
+# Стек "нагрузочное тестирование": InfluxDB + Grafana для просмотра результатов
+# k6-прогонов (load-tests/). Самостоятельный стек, не зависит от окружения
+# приложения (elk/db/app) — k6 подключается к нему только как к получателю
+# метрик, само приложение с этим стеком не взаимодействует.
+# Запуск: docker compose -f docker-compose.load-tests.yml up -d
+
+services:
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    environment:
+      - INFLUXDB_DB=k6
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    environment:
+      # Локальный дашборд только для просмотра результатов нагрузочных тестов —
+      # анонимный доступ с ролью Admin ради простоты, наружу не публикуется.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./load-tests/grafana/provisioning:/etc/grafana/provisioning
+      - ./load-tests/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+volumes:
+  influxdb-data:
