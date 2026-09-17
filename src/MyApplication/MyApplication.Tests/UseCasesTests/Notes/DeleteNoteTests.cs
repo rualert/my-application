@@ -33,7 +33,7 @@ public class DeleteNoteTests : NoteServiceTestBase
         await Sut.DeleteAsync(created.Id, CancellationToken.None);
 
         // Assert
-        var notes = await Sut.GetAllAsync(CancellationToken.None);
+        var notes = await Sut.GetAllAsync(0, 50, CancellationToken.None);
         Assert.DoesNotContain(notes, note => note.Id == created.Id);
     }
 
