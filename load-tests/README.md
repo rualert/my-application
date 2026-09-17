@@ -31,54 +31,83 @@ thresholds: {
 
 **Максимальный RPS — это последняя ступень, на которой оба порога ещё
 выполняются.** k6 не остановит тест сам при нарушении порога (если явно не
-включить `abortOnFail` у порога) — тест доходит до конца, а по summary/логам
-видно, на какой именно ступени (по времени от начала прогона) пороги
-перестали выполняться. Смотрите вывод `THRESHOLDS`, а для точной привязки
-нарушения к ступени — метрики с разбивкой по времени (`--out` в файл/InfluxDB/
-Grafana Cloud, если нужна такая детализация).
+включить `abortOnFail` у порога) — тест доходит до конца. Результаты по
+времени (в какой момент прогона латентность/ошибки поползли вверх, на какой
+именно ступени) удобнее смотреть не в терминальной сводке, а на дашборде —
+см. ниже.
 
 ## Запуск
 
 Нужны поднятые окружение и приложение (см. корневой `README.md`, разделы
 1–3): `docker-compose.elk.yml` → `docker-compose.db.yml` → `docker-compose.app.yml`.
 
-Через Docker-образ k6 (ничего дополнительно ставить не нужно):
+### 1. Поднять InfluxDB + Grafana для результатов
+
+```bash
+docker compose -f docker-compose.load-tests.yml up -d
+```
+
+Создаёт отдельный стек (не зависит от окружения приложения):
+
+- **InfluxDB** — `http://localhost:8086`, база `k6`, сюда k6 пишет метрики прогона.
+- **Grafana** — `http://localhost:3000` (анонимный доступ, без логина — это чисто
+  локальный просмотрщик результатов), datasource и дашборд **«k6 Load Testing
+  Results»** подключаются автоматически при первом старте (provisioning из
+  `load-tests/grafana/`) — ничего настраивать вручную не нужно.
+
+### 2. Прогнать сценарий с отправкой метрик в InfluxDB
+
+Через Docker-образ k6, подключенный к сети стека из шага 1
+(`myapplication_default` — имя сети по умолчанию для `docker-compose.load-tests.yml`
+в этом репозитории; проверить точное имя: `docker network ls`):
 
 ```bash
 docker run --rm -i \
+  --network myapplication_default \
   -e BASE_URL=http://host.docker.internal:8080 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
-  grafana/k6 run scenarios/notes-list.js
+  grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-list.js
 
 docker run --rm -i \
+  --network myapplication_default \
   -e BASE_URL=http://host.docker.internal:8080 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
-  grafana/k6 run scenarios/notes-get-by-id.js
+  grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-get-by-id.js
 ```
 
 `host.docker.internal` — адрес хоста из контейнера k6 (работает в Docker
 Desktop на Windows/Mac; на Linux вместо этого добавьте `--add-host=host.docker.internal:host-gateway`
-или подключите контейнер к сети `elastic` и используйте `http://myapplication-api:8080`).
+или подключите контейнер ещё и к сети `elastic`, используя `http://myapplication-api:8080`).
 
-Если k6 установлен локально — то же самое, без Docker:
+Если k6 установлен локально — то же самое, без Docker (InfluxDB тогда доступен
+на `localhost:8086`, как опубликовано в `docker-compose.load-tests.yml`):
 
 ```bash
-BASE_URL=http://localhost:8080 k6 run load-tests/scenarios/notes-list.js
+BASE_URL=http://localhost:8080 k6 run --out influxdb=http://localhost:8086/k6 load-tests/scenarios/notes-list.js
 ```
+
+### 3. Посмотреть результаты
+
+Откройте `http://localhost:3000/d/afyik1gc1tekge/k6-load-testing-results` —
+графики RPS, латентности и виртуальных пользователей по времени прогона.
+Разброс задержки в момент, когда p95 начинает уходить вверх, и совпадает по
+времени со ступенью в `STAGE_TARGETS`/`STAGE_DURATION`, — это и есть искомый
+максимальный RPS.
 
 ### Быстрый прогон для проверки (не для поиска реального потолка)
 
 ```bash
 docker run --rm -i \
+  --network myapplication_default \
   -e BASE_URL=http://host.docker.internal:8080 \
   -e SEED_COUNT=5 \
   -e STAGE_DURATION=5s \
   -e STAGE_TARGETS=10,20 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
-  grafana/k6 run scenarios/notes-list.js
+  grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-list.js
 ```
 
 ## Настройка через переменные окружения
