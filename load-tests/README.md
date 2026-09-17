@@ -11,6 +11,12 @@
 
 Оба перед стартом нагрузки сами создают `SEED_COUNT` заметок через `POST /Notes`
 (`setup()`), чтобы тестировать не пустую базу, а реалистичный объём данных.
+Запросы отправляются пачками через `http.batch()` (`lib/seed.js`), а не по
+одному — иначе при большом `SEED_COUNT` (тысячи заметок) `setup()` не
+укладывается в таймаут k6 (`setupTimeout`, поднят до 5 минут в `options`
+каждого сценария) и весь прогон падает с `setup() execution timed out`, так
+и не начав генерировать нагрузку — снаружи это выглядит так, будто
+`SEED_COUNT` «не применился».
 
 ## Как это ищет максимальный RPS
 
@@ -24,22 +30,57 @@ k6 ступенчато поднимает **целевой RPS** (не числ
 
 ```js
 thresholds: {
-  http_req_failed: ['rate<0.01'],   // не больше 1% ошибок
-  http_req_duration: ['p(95)<500'], // p95 не больше 500 мс
+  http_req_failed: ['rate<0.01'],  // не больше 1% ошибок
+  http_req_duration: ['p(99)<500'], // p99 не больше 500 мс
 }
 ```
 
 **Максимальный RPS — это последняя ступень, на которой оба порога ещё
 выполняются.** k6 не остановит тест сам при нарушении порога (если явно не
-включить `abortOnFail` у порога) — тест доходит до конца. Результаты по
-времени (в какой момент прогона латентность/ошибки поползли вверх, на какой
-именно ступени) удобнее смотреть не в терминальной сводке, а на дашборде —
-см. ниже.
+включить `abortOnFail` у порога) — тест доходит до конца.
+
+Чтобы узнать именно эту ступень, а не только факт «где-то что-то нарушилось»,
+каждый запрос тегируется текущей целевой ступенью (`stage_rps`,
+`lib/stageThresholds.js`), а `thresholds` объявляются не только для всего
+прогона целиком, но и отдельно для каждой ступени (сабметрики вида
+`http_req_duration{stage_rps:400}`). В конце прогона `handleSummary()`
+(`lib/maxRpsSummary.js`) проходит по этим сабметрикам и **печатает в консоль
+строку вида `Maximum RPS satisfying thresholds: 400`** — искать ступень
+глазами по обычной сводке не нужно. Подробная картина по времени (когда
+именно латентность/ошибки поползли вверх) всё равно удобнее смотрится на
+дашборде — см. ниже.
+
+Тот же результат дописывается строкой в markdown-таблицу `results/<сценарий>.md`
+(дата, максимальный RPS, использованные `thresholds`, `SEED_COUNT`) — история
+прогонов по каждому сценарию в git, а не только в терминале/Grafana (у
+InfluxDB нет retention-политики "хранить вечно"). Thresholds и seed count
+записываются вместе с RPS специально: одна и та же цифра RPS означает разное
+в зависимости от того, при каких порогах и объёме данных она получена, а
+они могут меняться между прогонами — см. `results/notes-list.md`,
+`results/notes-get-by-id.md`.
+
+## Изолированная БД для прогона
+
+`SEED_COUNT` создаёт тысячи тестовых заметок — если гонять нагрузку на
+обычный dev-стек (`docker-compose.db.yml` + `docker-compose.app.yml`), эти
+заметки останутся там навсегда и засорят базу, которой пользуются
+разработка/`SmokeTests`/что угодно ещё. Поэтому для load-тестов поднимается
+**отдельный, полностью изолированный стек** — своя БД и свой инстанс
+приложения (`docker-compose.load-tests-db.yml`, порты 5433/8081, чтобы не
+конфликтовать с dev-стеком на 5432/8080) — который живёт ровно на время
+одного прогона.
+
+**PowerShell-скрипты (`load-tests/scripts/`) делают это автоматически**:
+поднимают стек, ждут готовности приложения, гоняют сценарий, затем удаляют
+стек вместе с томом данных (`docker compose ... down -v`) — даже если сам
+прогон упал с ошибкой. Поэтому для них `docker-compose.db.yml` /
+`docker-compose.app.yml` (обычный dev-стек) **не требуются вообще** — нужен
+только `docker-compose.load-tests.yml` (шаг 1 ниже). Посмотреть, что осталось
+в изолированной базе после прогона (не удаляя её сразу) — флаг `-KeepDb`,
+удалить вручную потом:
+`docker compose -p myapplication-loadtest -f docker-compose.load-tests-db.yml down -v`.
 
 ## Запуск
-
-Нужны поднятые окружение и приложение (см. корневой `README.md`, разделы
-1–3): `docker-compose.elk.yml` → `docker-compose.db.yml` → `docker-compose.app.yml`.
 
 ### 1. Поднять InfluxDB + Grafana для результатов
 
@@ -57,35 +98,56 @@ docker compose -f docker-compose.load-tests.yml up -d
 
 ### 2. Прогнать сценарий с отправкой метрик в InfluxDB
 
-Через Docker-образ k6, подключенный к сети стека из шага 1
-(`myapplication_default` — имя сети по умолчанию для `docker-compose.load-tests.yml`
-в этом репозитории; проверить точное имя: `docker network ls`):
+#### Вариант A — PowerShell-скрипты (Windows)
+
+```powershell
+cd load-tests/scripts
+./Invoke-NotesListScenario.ps1
+./Invoke-NotesGetByIdScenario.ps1
+```
+
+Тонкие обёртки над `Invoke-K6Scenario.ps1`, который сам поднимает изолированный
+стек БД/приложения (см. выше), ждёт его готовности, делает `docker run` ниже
+(со всеми теми же параметрами — `-BaseUrl`, `-Network`, `-SeedCount`,
+`-StageDuration`, `-StageTargets`, `-KeepDb`, ...) и удаляет стек после.
+Справка: `Get-Help ./Invoke-NotesListScenario.ps1 -Full`.
+
+#### Вариант B — напрямую через Docker-образ k6
+
+**В отличие от варианта A, изолированный стек здесь сам себя не поднимает и
+не удаляет** — либо поднимите его вручную (`docker compose -p myapplication-loadtest
+-f docker-compose.load-tests-db.yml up -d --build`, порт приложения — 8081,
+не забудьте потом `down -v`), либо явно нацельтесь на обычный dev-стек,
+понимая, что `SEED_COUNT` останется там навсегда.
+
+Подключенный к сети стека из шага 1 (`myapplication_default` — имя сети по
+умолчанию для `docker-compose.load-tests.yml` в этом репозитории; проверить
+точное имя: `docker network ls`):
 
 ```bash
 docker run --rm -i \
   --network myapplication_default \
-  -e BASE_URL=http://host.docker.internal:8080 \
+  -e BASE_URL=http://host.docker.internal:8081 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
   grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-list.js
 
 docker run --rm -i \
   --network myapplication_default \
-  -e BASE_URL=http://host.docker.internal:8080 \
+  -e BASE_URL=http://host.docker.internal:8081 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
   grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-get-by-id.js
 ```
 
 `host.docker.internal` — адрес хоста из контейнера k6 (работает в Docker
-Desktop на Windows/Mac; на Linux вместо этого добавьте `--add-host=host.docker.internal:host-gateway`
-или подключите контейнер ещё и к сети `elastic`, используя `http://myapplication-api:8080`).
+Desktop на Windows/Mac; на Linux вместо этого добавьте `--add-host=host.docker.internal:host-gateway`).
 
 Если k6 установлен локально — то же самое, без Docker (InfluxDB тогда доступен
 на `localhost:8086`, как опубликовано в `docker-compose.load-tests.yml`):
 
 ```bash
-BASE_URL=http://localhost:8080 k6 run --out influxdb=http://localhost:8086/k6 load-tests/scenarios/notes-list.js
+BASE_URL=http://localhost:8081 k6 run --out influxdb=http://localhost:8086/k6 load-tests/scenarios/notes-list.js
 ```
 
 ### 3. Посмотреть результаты
@@ -98,10 +160,18 @@ BASE_URL=http://localhost:8080 k6 run --out influxdb=http://localhost:8086/k6 lo
 
 ### Быстрый прогон для проверки (не для поиска реального потолка)
 
+PowerShell:
+
+```powershell
+./Invoke-NotesListScenario.ps1 -SeedCount 5 -StageDuration 5s -StageTargets 10,20
+```
+
+Docker напрямую (изолированный стек уже должен быть поднят вручную — см. вариант B выше):
+
 ```bash
 docker run --rm -i \
   --network myapplication_default \
-  -e BASE_URL=http://host.docker.internal:8080 \
+  -e BASE_URL=http://host.docker.internal:8081 \
   -e SEED_COUNT=5 \
   -e STAGE_DURATION=5s \
   -e STAGE_TARGETS=10,20 \
@@ -114,7 +184,7 @@ docker run --rm -i \
 
 | Переменная | По умолчанию | Что делает |
 |---|---|---|
-| `BASE_URL` | `http://localhost:8080` | Адрес API |
+| `BASE_URL` | `http://localhost:8081` (изолированный инстанс, см. выше) | Адрес API |
 | `SEED_COUNT` | `50` | Сколько заметок создать перед стартом нагрузки |
 | `STAGE_DURATION` | `30s` | Длительность каждой ступени роста RPS |
 | `STAGE_TARGETS` | `50,100,200,400,800,1200` | Целевые RPS по ступеням, через запятую |

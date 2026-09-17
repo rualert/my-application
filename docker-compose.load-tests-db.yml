@@ -1,0 +1,48 @@
+# Изолированный стек "БД + приложение" для нагрузочных тестов — чтобы
+# SEED_COUNT (тысячи тестовых заметок) не засорял основную dev-базу
+# (docker-compose.db.yml + docker-compose.app.yml). Полностью самостоятельный:
+# не требует сети `elastic` и остальных dev-стеков, приложение здесь без
+# логов/трейсинга (эндпоинты не заданы — деградируют молча, см. основной
+# docker-compose.app.yml/CLAUDE.md).
+#
+# Управляется автоматически из load-tests/scripts/Invoke-K6Scenario.ps1:
+# поднимается перед прогоном k6 и удаляется после — именно с `down -v`, том
+# с данными эфемерный и не должен переживать прогон. Ручной запуск (для
+# отладки, например чтобы посмотреть в базу после прогона):
+#   docker compose -p myapplication-loadtest -f docker-compose.load-tests-db.yml up -d --build
+#   docker compose -p myapplication-loadtest -f docker-compose.load-tests-db.yml down -v
+
+services:
+  postgres-loadtest:
+    image: postgres:17
+    container_name: postgres-loadtest
+    environment:
+      - POSTGRES_DB=myapplication
+      - POSTGRES_USER=myapplication
+      - POSTGRES_PASSWORD=myapplication
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-loadtest-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myapplication -d myapplication"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  myapplication-api-loadtest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myapplication-api-loadtest
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__Notes=Host=postgres-loadtest;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres-loadtest:
+        condition: service_healthy
+
+volumes:
+  postgres-loadtest-data:
