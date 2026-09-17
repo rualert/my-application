@@ -38,14 +38,21 @@ public class NotesController : ControllerBase
     }
 
     /// <summary>
-    ///     Возвращает список всех заметок (без текста).
+    ///     Возвращает страницу заметок (без текста), отсортированных от новых к старым.
     /// </summary>
-    /// <returns>Список кратких сведений о заметках.</returns>
+    /// <param name="from">Сколько заметок пропустить с начала списка. По умолчанию 0.</param>
+    /// <param name="count">Сколько заметок вернуть. По умолчанию 50.</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>Список кратких сведений о заметках, либо 400 при невалидных from/count.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<NoteSummaryResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<NoteSummaryResponse>>> GetAll(CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<NoteSummaryResponse>>> GetAll(
+        [FromQuery] int from = 0,
+        [FromQuery] int count = 50,
+        CancellationToken cancellationToken = default)
     {
-        var notes = await _noteService.GetAllAsync(cancellationToken);
+        var notes = await _noteService.GetAllAsync(from, count, cancellationToken);
         return Ok(notes.Select(ToSummaryResponse).ToArray());
     }
 

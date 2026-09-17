@@ -40,7 +40,7 @@ public class NotesSmokeTests : SmokeTestBase
         await Sut.PostAsJsonAsync("/Notes", new CreateNoteRequest("Заголовок", "Текст заметки"));
 
         // Act
-        var response = await Sut.GetAsync("/Notes");
+        var response = await Sut.GetAsync("/Notes?from=0&count=50");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

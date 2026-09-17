@@ -33,13 +33,17 @@ public class NoteRepository : INoteRepository
     }
 
     /// <summary>
-    ///     Возвращает все заметки, отсортированные от новых к старым.
+    ///     Возвращает страницу заметок, отсортированных от новых к старым:
+    ///     пропускает первые <paramref name="from"/> заметок и возвращает
+    ///     не более <paramref name="count"/> следующих.
     /// </summary>
-    public async Task<IReadOnlyList<Note>> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Note>> GetAllAsync(int from, int count, CancellationToken cancellationToken)
     {
         return await _context.Notes
             .AsNoTracking()
             .OrderByDescending(note => note.CreatedAt)
+            .Skip(from)
+            .Take(count)
             .ToListAsync(cancellationToken);
     }
 

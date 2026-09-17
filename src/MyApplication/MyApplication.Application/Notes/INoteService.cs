@@ -11,9 +11,14 @@ public interface INoteService
     Task<NoteDetails> CreateAsync(string title, string text, CancellationToken cancellationToken);
 
     /// <summary>
-    ///     Возвращает список всех заметок (без текста).
+    ///     Возвращает страницу заметок (без текста), отсортированных от новых
+    ///     к старым: пропускает первые <paramref name="from"/> заметок и
+    ///     возвращает не более <paramref name="count"/> следующих.
     /// </summary>
-    Task<IReadOnlyList<NoteSummary>> GetAllAsync(CancellationToken cancellationToken);
+    /// <exception cref="ApplicationException">
+    ///     <paramref name="from"/> отрицательный, либо <paramref name="count"/> не положительный.
+    /// </exception>
+    Task<IReadOnlyList<NoteSummary>> GetAllAsync(int from, int count, CancellationToken cancellationToken);
 
     /// <summary>
     ///     Возвращает заметку целиком по идентификатору.

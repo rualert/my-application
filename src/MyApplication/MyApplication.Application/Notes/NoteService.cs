@@ -29,12 +29,25 @@ public class NoteService : INoteService
     }
 
     /// <summary>
-    ///     Возвращает список всех заметок (без текста).
+    ///     Возвращает страницу заметок (без текста), отсортированных от новых к старым.
     /// </summary>
     /// <returns>Список кратких сведений о заметках.</returns>
-    public async Task<IReadOnlyList<NoteSummary>> GetAllAsync(CancellationToken cancellationToken)
+    /// <exception cref="ApplicationException">
+    ///     <paramref name="from"/> отрицательный, либо <paramref name="count"/> не положительный.
+    /// </exception>
+    public async Task<IReadOnlyList<NoteSummary>> GetAllAsync(int from, int count, CancellationToken cancellationToken)
     {
-        var notes = await _repository.GetAllAsync(cancellationToken);
+        if (from < 0)
+        {
+            throw new ApplicationException("Параметр from не может быть отрицательным.");
+        }
+
+        if (count <= 0)
+        {
+            throw new ApplicationException("Параметр count должен быть положительным.");
+        }
+
+        var notes = await _repository.GetAllAsync(from, count, cancellationToken);
         return notes.Select(ToSummary).ToArray();
     }
 
