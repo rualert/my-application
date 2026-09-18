@@ -11,6 +11,7 @@
 # репозитория, для отладки — например чтобы посмотреть в базу после прогона):
 #   docker compose -p myapplication-loadtest -f ci/docker-compose.load-tests-db.yml up -d --build
 #   docker compose -p myapplication-loadtest -f ci/docker-compose.load-tests-db.yml down -v
+name: myapplication-load-tests
 
 services:
   postgres-loadtest:

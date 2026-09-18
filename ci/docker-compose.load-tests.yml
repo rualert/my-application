@@ -8,7 +8,7 @@
 # файла (ci), а не репозитория, и сеть по умолчанию называлась бы
 # ci_default вместо myapplication_default (на это имя жёстко завязан
 # load-tests/scripts/Invoke-K6Scenario.ps1 — см. его -Network).
-name: myapplication
+name: myapplication-load-tests
 
 services:
   influxdb:

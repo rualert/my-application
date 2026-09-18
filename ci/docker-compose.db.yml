@@ -3,6 +3,8 @@
 # это просто одна общая сеть для всех стеков, несмотря на "эластиковое" название.
 # Запуск (из корня репозитория): docker compose -f ci/docker-compose.db.yml up -d
 
+name: myapplication-infra
+
 services:
   postgres:
     image: postgres:17
