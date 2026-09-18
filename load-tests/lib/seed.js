@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check, fail } from 'k6';
+import { authHeaders } from './auth.js';
 
 const BATCH_SIZE = 50;
 
@@ -14,8 +15,11 @@ const BATCH_SIZE = 50;
  * options.setupTimeout в сценариях) и весь прогон падает с "setup()
  * execution timed out", даже не начав генерировать нагрузку — снаружи это
  * выглядит так, будто SEED_COUNT «не применился».
+ *
+ * /Notes защищён авторизацией (см. lib/auth.js) — `token` должен быть
+ * access token, полученный через loginLoadTestUser() в том же setup().
  */
-export function seedNotes(baseUrl, count) {
+export function seedNotes(baseUrl, count, token) {
     const ids = [];
 
     for (let start = 0; start < count; start += BATCH_SIZE) {
@@ -27,7 +31,7 @@ export function seedNotes(baseUrl, count) {
                 title: `Заметка для нагрузочного теста №${start + i}`,
                 text: 'Текст, сгенерированный для нагрузочного тестирования.',
             }),
-            params: { headers: { 'Content-Type': 'application/json' } },
+            params: { headers: authHeaders(token, { 'Content-Type': 'application/json' }) },
         }));
 
         for (const [i, response] of http.batch(requests).entries()) {

@@ -7,6 +7,10 @@ WORKDIR /app
 COPY src/MyApplication.Web.UI/package.json src/MyApplication.Web.UI/package-lock.json src/MyApplication.Web.UI/.npmrc ./
 RUN npm ci --global=false
 COPY src/MyApplication.Web.UI/ ./
+# Vite встраивает VITE_-переменные окружения в статику на этапе сборки —
+# ARG сам по себе не виден в RUN, поэтому явно прокидывается в ENV.
+ARG VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 FROM nginx:1.27-alpine

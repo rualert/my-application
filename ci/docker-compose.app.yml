@@ -27,6 +27,15 @@ services:
       - Elasticsearch__Uri=http://elasticsearch:9200
       - OpenTelemetry__OtlpEndpoint=http://apm-server:8200
       - ConnectionStrings__Notes=Host=postgres;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication
+      - ConnectionStrings__Users=Host=postgres;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication
+      # Google__ClientId и Jwt__SigningKey — секреты, не хардкодятся здесь.
+      # Задаются через переменные окружения хоста/файл .env в корне репозитория
+      # (Docker Compose подхватывает его автоматически), см. .env.example.
+      - Google__ClientId=${GOOGLE_CLIENT_ID}
+      - Jwt__Issuer=MyApplication
+      - Jwt__Audience=MyApplication
+      - Jwt__SigningKey=${JWT_SIGNING_KEY}
+      - Jwt__AccessTokenLifetimeMinutes=15
     ports:
       - "8080:8080"
     networks:
@@ -40,6 +49,11 @@ services:
     build:
       context: ..
       dockerfile: ci/Dockerfile.web-ui
+      # Vite встраивает VITE_-переменные в статику на этапе сборки, а не
+      # читает их в рантайме — поэтому Client ID передаётся как build arg,
+      # а не через environment: ниже (тот влияет только на контейнер nginx).
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     container_name: myapplication-web-ui
     ports:
       # 80 по умолчанию, как требует спека UI (docs/docs/notes/web-ui.md).

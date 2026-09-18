@@ -10,7 +10,7 @@ export function NotesApp() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
 
   return (
-    <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
+    <div style={{ display: "flex", height: "100%", width: "100%" }}>
       <div
         style={{
           flex: `0 0 ${collapsed ? COLLAPSED_LIST_WIDTH : EXPANDED_LIST_WIDTH}`,

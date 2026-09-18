@@ -20,6 +20,10 @@ public class NotesDbContext : DbContext
         {
             builder.ToTable("notes");
             builder.HasKey(note => note.Id);
+            // UserId — ссылка по идентификатору на пользователя из AuthDbContext,
+            // без FK: Notes и Auth — разные bounded context'ы/DbContext'ы.
+            builder.Property(note => note.UserId).IsRequired();
+            builder.HasIndex(note => note.UserId);
             builder.Property(note => note.Title).HasMaxLength(Note.MaxTitleLength).IsRequired();
             builder.Property(note => note.Text).IsRequired();
             builder.Property(note => note.CreatedAt).IsRequired();

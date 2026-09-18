@@ -1,6 +1,8 @@
 # Стек "окружение": Elasticsearch + Kibana, разворачивается независимо от приложения.
 # Запуск (из корня репозитория): docker compose -f ci/docker-compose.elk.yml up -d
 
+name: myapplication-infra
+
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0

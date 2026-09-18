@@ -18,11 +18,12 @@ public interface INoteRepository
     Task<Note?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
-    ///     Возвращает страницу заметок, отсортированных от новых к старым:
-    ///     пропускает первые <paramref name="from"/> заметок и возвращает
-    ///     не более <paramref name="count"/> следующих.
+    ///     Возвращает страницу заметок пользователя <paramref name="userId"/>,
+    ///     отсортированных от новых к старым: пропускает первые
+    ///     <paramref name="from"/> заметок и возвращает не более
+    ///     <paramref name="count"/> следующих.
     /// </summary>
-    Task<IReadOnlyList<Note>> GetAllAsync(int from, int count, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Note>> GetAllAsync(Guid userId, int from, int count, CancellationToken cancellationToken);
 
     /// <summary>
     ///     Помечает заметку на удаление (без сохранения — см. <see cref="SaveChangesAsync"/>).

@@ -1,5 +1,9 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using MyApplication.Application.Auth;
+using MyApplication.Tests.UseCasesTests.Auth.Harness;
 using Npgsql;
 using Respawn;
 using Testcontainers.PostgreSql;
@@ -46,7 +50,22 @@ public sealed class SmokeTestFixture : IAsyncLifetime
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:Notes"] = _postgres.GetConnectionString(),
+                    ["ConnectionStrings:Users"] = _postgres.GetConnectionString(),
+                    ["Jwt:Issuer"] = "MyApplication.Tests",
+                    ["Jwt:Audience"] = "MyApplication.Tests",
+                    ["Jwt:SigningKey"] = "test-signing-key-at-least-32-bytes-long!",
+                    ["Jwt:AccessTokenLifetimeMinutes"] = "15",
+                    ["Google:ClientId"] = "test-client-id",
                 });
+            });
+
+            // Настоящий IGoogleIdTokenValidator дёргает серверы Google — недоступно
+            // в CI/локально без реального Google-аккаунта. Единственная подмена
+            // в смок-тестах: вся остальная инфраструктура (Postgres, репозитории,
+            // выпуск собственных JWT) остаётся настоящей.
+            builder.ConfigureServices(services =>
+            {
+                services.Replace(ServiceDescriptor.Scoped<IGoogleIdTokenValidator, FakeGoogleIdTokenValidator>());
             });
         });
 

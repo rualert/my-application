@@ -34,6 +34,18 @@ public abstract class NoteServiceTestBase : IDisposable
     protected INoteService Sut { get; }
 
     /// <summary>
+    ///     Идентификатор пользователя, от имени которого сценарии обычно
+    ///     вызывают SUT. Авторизация уже считается пройденной на этом этапе —
+    ///     достаточно передать литеральный Guid, без обращения к Auth-фиче.
+    /// </summary>
+    protected static Guid CallerUserId { get; } = Guid.NewGuid();
+
+    /// <summary>
+    ///     Идентификатор другого пользователя — для сценариев доступа к чужим заметкам.
+    /// </summary>
+    protected static Guid OtherUserId { get; } = Guid.NewGuid();
+
+    /// <summary>
     ///     Освобождает контекст EF Core вместе с его in-memory базой данных теста.
     /// </summary>
     public void Dispose()

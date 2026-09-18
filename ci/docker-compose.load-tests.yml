@@ -5,10 +5,13 @@
 # Запуск (из корня репозитория): docker compose -f ci/docker-compose.load-tests.yml up -d
 #
 # Явное имя проекта — иначе Docker Compose взял бы его из имени папки этого
-# файла (ci), а не репозитория, и сеть по умолчанию называлась бы
-# ci_default вместо myapplication_default (на это имя жёстко завязан
-# load-tests/scripts/Invoke-K6Scenario.ps1 — см. его -Network).
-name: myapplication
+# файла (ci), а не репозитория, и сеть по умолчанию называлась бы ci_default.
+# Суффикс -infra (а не просто myapplication-load-tests) — чтобы не столкнуться
+# именем проекта/сети с ci/docker-compose.load-tests-db.yml, у которого своё
+# собственное имя проекта myapplication-load-tests. Итоговая сеть по
+# умолчанию — myapplication-load-tests-infra_default (на это имя жёстко
+# завязан load-tests/scripts/Invoke-K6Scenario.ps1 — см. его -Network).
+name: myapplication-load-tests-infra
 
 services:
   influxdb:

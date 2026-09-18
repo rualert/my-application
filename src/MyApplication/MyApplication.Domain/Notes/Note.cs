@@ -11,14 +11,16 @@ public class Note
     public const int MaxTextBytes = 1024 * 1024;
 
     public Guid Id { get; }
+    public Guid UserId { get; }
     public string Title { get; private set; }
     public string Text { get; private set; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    private Note(Guid id, string title, string text, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+    private Note(Guid id, Guid userId, string title, string text, DateTimeOffset createdAt, DateTimeOffset updatedAt)
     {
         Id = id;
+        UserId = userId;
         Title = title;
         Text = text;
         CreatedAt = createdAt;
@@ -26,7 +28,7 @@ public class Note
     }
 
     /// <summary>
-    ///     Создаёт новую заметку с указанными заголовком и текстом.
+    ///     Создаёт новую заметку с указанными владельцем, заголовком и текстом.
     /// </summary>
     /// <returns>Новая заметка с сгенерированным идентификатором.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text"/> равен <c>null</c>.</exception>
@@ -34,13 +36,13 @@ public class Note
     ///     Заголовок пуст или длиннее <see cref="MaxTitleLength"/> символов,
     ///     либо текст (в UTF-8) занимает больше <see cref="MaxTextBytes"/> байт.
     /// </exception>
-    public static Note Create(string title, string text)
+    public static Note Create(Guid userId, string title, string text)
     {
         ValidateTitle(title);
         ValidateText(text);
 
         var now = DateTimeOffset.UtcNow;
-        return new Note(Guid.NewGuid(), title, text, now, now);
+        return new Note(Guid.NewGuid(), userId, title, text, now, now);
     }
 
     /// <summary>

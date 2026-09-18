@@ -1,3 +1,7 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using MyApplication.Api.Models.Auth;
+
 namespace MyApplication.Tests.SmokeTests.Harness;
 
 /// <summary>
@@ -35,5 +39,28 @@ public abstract class SmokeTestBase : IAsyncLifetime
     public Task DisposeAsync()
     {
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Логинится через (фейковый в тестах — см. <see cref="SmokeTestFixture"/>)
+    ///     Google и возвращает выданный access token. Фейковый валидатор выводит
+    ///     Google-профиль прямо из <paramref name="idToken"/> — разные значения
+    ///     дают разных пользователей приложения.
+    /// </summary>
+    protected async Task<string> LoginAsync(string idToken = "test-user")
+    {
+        var response = await Sut.PostAsJsonAsync("/Auth/google", new GoogleLoginRequest(idToken));
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponse>();
+        return auth!.AccessToken;
+    }
+
+    /// <summary>
+    ///     Строит HTTP-запрос с приложенным access token'ом в заголовке Authorization.
+    /// </summary>
+    protected static HttpRequestMessage AuthorizedRequest(HttpMethod method, string url, string accessToken, HttpContent? content = null)
+    {
+        var request = new HttpRequestMessage(method, url) { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return request;
     }
 }
