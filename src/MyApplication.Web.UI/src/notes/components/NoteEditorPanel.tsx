@@ -1,6 +1,6 @@
 import { ActionIcon, Group, Loader, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { Eye, Pencil } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import { displayTitle, UNTITLED_TITLE } from "../domain";
 import { useNote } from "../hooks/useNote";
@@ -19,6 +19,34 @@ export function NoteEditorPanel({ noteId }: NoteEditorPanelProps) {
   const autosave = useNoteAutosave(noteQuery.data);
   const [mode, setMode] = useState<"edit" | "view">("edit");
   const now = useNow(STATUS_TICK_MS);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Enter или стрелка вниз в заголовке — курсор в начало текста; стрелка вверх
+  // из начала текста — курсор в конец заголовка. Делает переход между полями
+  // плавным, как между строками одного документа.
+  const handleTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter" && event.key !== "ArrowDown") {
+      return;
+    }
+    event.preventDefault();
+    textareaRef.current?.focus();
+    textareaRef.current?.setSelectionRange(0, 0);
+  };
+
+  const handleTextKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = event.currentTarget;
+    if (event.key !== "ArrowUp" || textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) {
+      return;
+    }
+    event.preventDefault();
+    const titleInput = titleInputRef.current;
+    if (!titleInput) {
+      return;
+    }
+    titleInput.focus();
+    titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+  };
 
   if (!noteId) {
     return (
@@ -64,15 +92,19 @@ export function NoteEditorPanel({ noteId }: NoteEditorPanelProps) {
         {mode === "edit" ? (
           <>
             <TextInput
+              ref={titleInputRef}
               value={autosave.title}
               onChange={(event) => autosave.setTitle(event.currentTarget.value)}
+              onKeyDown={handleTitleKeyDown}
               placeholder={UNTITLED_TITLE}
               variant="unstyled"
               styles={{ input: { fontWeight: 700, fontSize: "1.5rem" } }}
             />
             <Textarea
+              ref={textareaRef}
               value={autosave.text}
               onChange={(event) => autosave.setText(event.currentTarget.value)}
+              onKeyDown={handleTextKeyDown}
               variant="unstyled"
               autosize
               minRows={12}
