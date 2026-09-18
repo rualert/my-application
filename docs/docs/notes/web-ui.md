@@ -7,6 +7,14 @@ title: Интерфейс
 
 Приложение имеет интерфейс для работы с заметками.
 
+## Вход
+
+Доступ к интерфейсу закрыт экраном входа с кнопкой «Войти через аккаунт
+Google» (см. [«Авторизация»](/auth/overview)) — сами заметки не
+показываются, пока пользователь не залогинен. После входа сессия тихо
+восстанавливается при обновлении страницы (по refresh-cookie), пока она не
+истекла. Кнопка «Выйти» находится в тулбаре списка заметок.
+
 ## Интерфейс для ПК
 
 Слева экрана список заметок, который занимает 30% ширины и может быть уменьшен до вертикальной полоски инструментов нажатием кнопки. 
@@ -20,8 +28,9 @@ title: Интерфейс
 - React + TypeScript приложение (Vite), со стандартной структурой по фичам.
 - Находится в `src/MyApplication.Web.UI`.
 - [Mantine](https://mantine.dev/) — компоненты интерфейса и раскладка; [TanStack Query](https://tanstack.com/query) — список/CRUD-запросы к API (бесконечный скролл через `useInfiniteQuery`); [react-markdown](https://github.com/remarkjs/react-markdown) — рендер режима просмотра; [lucide-react](https://lucide.dev/) — иконки в тулбарах.
+- [Google Identity Services](https://developers.google.com/identity/gsi/web) (подключается тегом `<script>`, без обёртки вроде `@react-oauth/google`) — кнопка входа; access token хранится в памяти (не в `localStorage`), refresh — в httpOnly cookie, недоступной JS.
 - Собирается и деплоится в докер (`ci/Dockerfile.web-ui`).
-- Отдаётся статика при помощи nginx c адреса: localhost:80. nginx же проксирует запросы `/Notes` на API — единый origin для браузера, без CORS.
+- Отдаётся статика при помощи nginx c адреса: localhost:80. nginx же проксирует запросы `/Notes` и `/Auth` на API — единый origin для браузера, без CORS (важно и для refresh-cookie — она того же origin, что и фронт).
 
 ## Дизайн
 

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MyApplication.Application.Notes;
 using MyApplication.Api.Models;
@@ -5,10 +7,12 @@ using MyApplication.Api.Models;
 namespace MyApplication.Api.Controllers;
 
 /// <summary>
-///     CRUD-операции над заметками. Исключения слоя Domain/Application
-///     (см. <see cref="MyApplication.Domain.DomainException"/>) в 400 Bad
-///     Request маппит глобальный обработчик — контроллеру ловить их не нужно.
+///     CRUD-операции над заметками. Заметки приватны — каждая операция
+///     скоупится по вызывающему пользователю, извлечённому из JWT. Исключения
+///     слоя Domain/Application (см. <see cref="MyApplication.Domain.DomainException"/>)
+///     в 401/403/400 маппит глобальный обработчик — контроллеру ловить их не нужно.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("[controller]")]
 public class NotesController : ControllerBase
@@ -23,6 +27,8 @@ public class NotesController : ControllerBase
         _noteService = noteService;
     }
 
+    private Guid CallerUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
     /// <summary>
     ///     Создаёт новую заметку.
     /// </summary>
@@ -30,9 +36,10 @@ public class NotesController : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<NoteResponse>> Create(CreateNoteRequest request, CancellationToken cancellationToken)
     {
-        var note = await _noteService.CreateAsync(request.Title, request.Text, cancellationToken);
+        var note = await _noteService.CreateAsync(CallerUserId, request.Title, request.Text, cancellationToken);
         var response = ToResponse(note);
         return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
     }
@@ -47,51 +54,58 @@ public class NotesController : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<NoteSummaryResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<NoteSummaryResponse>>> GetAll(
         [FromQuery] int from = 0,
         [FromQuery] int count = 50,
         CancellationToken cancellationToken = default)
     {
-        var notes = await _noteService.GetAllAsync(from, count, cancellationToken);
+        var notes = await _noteService.GetAllAsync(CallerUserId, from, count, cancellationToken);
         return Ok(notes.Select(ToSummaryResponse).ToArray());
     }
 
     /// <summary>
     ///     Возвращает заметку целиком по идентификатору.
     /// </summary>
-    /// <returns>Заметка с кодом 200, либо 400, если она не найдена.</returns>
+    /// <returns>Заметка с кодом 200, либо 400, если она не найдена, либо 403, если она принадлежит другому пользователю.</returns>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<NoteResponse>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var note = await _noteService.GetByIdAsync(id, cancellationToken);
+        var note = await _noteService.GetByIdAsync(CallerUserId, id, cancellationToken);
         return Ok(ToResponse(note));
     }
 
     /// <summary>
     ///     Обновляет заголовок и текст заметки.
     /// </summary>
-    /// <returns>Обновлённая заметка с кодом 200, либо 400, если заметка не найдена или нарушены бизнес-правила.</returns>
+    /// <returns>Обновлённая заметка с кодом 200, либо 400, если заметка не найдена или нарушены бизнес-правила, либо 403, если она принадлежит другому пользователю.</returns>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<NoteResponse>> Update(Guid id, UpdateNoteRequest request, CancellationToken cancellationToken)
     {
-        var note = await _noteService.UpdateAsync(id, request.Title, request.Text, cancellationToken);
+        var note = await _noteService.UpdateAsync(CallerUserId, id, request.Title, request.Text, cancellationToken);
         return Ok(ToResponse(note));
     }
 
     /// <summary>
     ///     Удаляет заметку по идентификатору.
     /// </summary>
-    /// <returns>204, либо 400, если заметка не найдена.</returns>
+    /// <returns>204, либо 400, если заметка не найдена, либо 403, если она принадлежит другому пользователю.</returns>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        await _noteService.DeleteAsync(id, cancellationToken);
+        await _noteService.DeleteAsync(CallerUserId, id, cancellationToken);
         return NoContent();
     }
 

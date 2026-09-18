@@ -14,10 +14,10 @@ public class UpdateNoteTests : NoteServiceTestBase
     public async Task UpdateAsync_ForExistingNote_ChangesTitleAndText()
     {
         // Arrange
-        var created = await Sut.CreateAsync("Старый заголовок", "Старый текст", CancellationToken.None);
+        var created = await Sut.CreateAsync(CallerUserId, "Старый заголовок", "Старый текст", CancellationToken.None);
 
         // Act
-        var updated = await Sut.UpdateAsync(created.Id, "Новый заголовок", "Новый текст", CancellationToken.None);
+        var updated = await Sut.UpdateAsync(CallerUserId, created.Id, "Новый заголовок", "Новый текст", CancellationToken.None);
 
         // Assert
         Assert.Equal(created.Id, updated.Id);
@@ -31,11 +31,11 @@ public class UpdateNoteTests : NoteServiceTestBase
     public async Task UpdateAsync_ForExistingNote_IsReflectedByLaterGet()
     {
         // Arrange
-        var created = await Sut.CreateAsync("Старый заголовок", "Старый текст", CancellationToken.None);
-        await Sut.UpdateAsync(created.Id, "Новый заголовок", "Новый текст", CancellationToken.None);
+        var created = await Sut.CreateAsync(CallerUserId, "Старый заголовок", "Старый текст", CancellationToken.None);
+        await Sut.UpdateAsync(CallerUserId, created.Id, "Новый заголовок", "Новый текст", CancellationToken.None);
 
         // Act
-        var note = await Sut.GetByIdAsync(created.Id, CancellationToken.None);
+        var note = await Sut.GetByIdAsync(CallerUserId, created.Id, CancellationToken.None);
 
         // Assert
         Assert.Equal("Новый заголовок", note.Title);
@@ -49,31 +49,43 @@ public class UpdateNoteTests : NoteServiceTestBase
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteNotFoundException>(
-            () => Sut.UpdateAsync(Guid.NewGuid(), "Заголовок", "Текст", CancellationToken.None));
+            () => Sut.UpdateAsync(CallerUserId, Guid.NewGuid(), "Заголовок", "Текст", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ForNoteOwnedByAnotherUser_ThrowsNoteAccessDeniedException()
+    {
+        // Arrange
+        var created = await Sut.CreateAsync(OtherUserId, "Заголовок", "Текст", CancellationToken.None);
+
+        // Act
+        // Assert
+        await Assert.ThrowsAsync<NoteAccessDeniedException>(
+            () => Sut.UpdateAsync(CallerUserId, created.Id, "Новый заголовок", "Новый текст", CancellationToken.None));
     }
 
     [Fact]
     public async Task UpdateAsync_WithEmptyTitle_ThrowsNoteValidationException()
     {
         // Arrange
-        var created = await Sut.CreateAsync("Заголовок", "Текст", CancellationToken.None);
+        var created = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст", CancellationToken.None);
 
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteValidationException>(
-            () => Sut.UpdateAsync(created.Id, string.Empty, "Текст", CancellationToken.None));
+            () => Sut.UpdateAsync(CallerUserId, created.Id, string.Empty, "Текст", CancellationToken.None));
     }
 
     [Fact]
     public async Task UpdateAsync_WithTitleLongerThanMaxLength_ThrowsNoteValidationException()
     {
         // Arrange
-        var created = await Sut.CreateAsync("Заголовок", "Текст", CancellationToken.None);
+        var created = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст", CancellationToken.None);
         var tooLongTitle = new string('a', 1025);
 
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteValidationException>(
-            () => Sut.UpdateAsync(created.Id, tooLongTitle, "Текст", CancellationToken.None));
+            () => Sut.UpdateAsync(CallerUserId, created.Id, tooLongTitle, "Текст", CancellationToken.None));
     }
 }

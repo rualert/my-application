@@ -1,11 +1,15 @@
 using Microsoft.AspNetCore.Diagnostics;
+using MyApplication.Application.Auth;
+using MyApplication.Application.Notes;
 using MyApplication.Domain;
 
 namespace MyApplication.Api;
 
 /// <summary>
 ///     Глобально маппит любое <see cref="DomainException"/> (включая исключения
-///     слоя Application, которые от него наследуются) на 400 Bad Request.
+///     слоя Application, которые от него наследуются) на код ответа: 401 для
+///     ошибок аутентификации (невалидный/просроченный токен), 403 для доступа
+///     к чужому ресурсу, 400 для остальных нарушений бизнес-правил.
 ///     Необработанные здесь исключения остаются 500 — их дальше обрабатывает
 ///     стандартный конвейер ASP.NET Core.
 /// </summary>
@@ -22,7 +26,12 @@ public class DomainExceptionHandler : IExceptionHandler
             return false;
         }
 
-        httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+        httpContext.Response.StatusCode = domainException switch
+        {
+            InvalidGoogleTokenException or InvalidRefreshTokenException => StatusCodes.Status401Unauthorized,
+            NoteAccessDeniedException => StatusCodes.Status403Forbidden,
+            _ => StatusCodes.Status400BadRequest,
+        };
         await httpContext.Response.WriteAsync(domainException.Message, cancellationToken);
         return true;
     }

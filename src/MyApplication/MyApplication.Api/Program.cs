@@ -1,8 +1,13 @@
+using System.Text;
 using Elastic.Ingest.Elasticsearch.DataStreams;
 using Elastic.Serilog.Sinks;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using MyApplication.Api;
+using MyApplication.Application.Auth;
 using MyApplication.Application.Notes;
+using MyApplication.Infrastructure.Auth;
 using MyApplication.Infrastructure.Notes;
 using Npgsql;
 using OpenTelemetry.Resources;
@@ -44,6 +49,32 @@ builder.Services.AddDbContext<NotesDbContext>(options =>
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
 builder.Services.AddScoped<INoteService, NoteService>();
 
+builder.Services.AddDbContext<AuthDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Users")));
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IGoogleIdTokenValidator, GoogleIdTokenValidator>();
+builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Собственные JWT (не Google) — Google участвует только в момент входа
+// (см. IGoogleIdTokenValidator), дальше фронт и API общаются через них.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SigningKey"] ?? string.Empty)),
+            ValidateLifetime = true,
+        };
+    });
+builder.Services.AddAuthorization();
+
 // Распределённая трассировка: каждый входящий запрос и каждый исходящий вызов
 // через HttpClient получает Activity в формате W3C trace-context, который
 // прокидывается между сервисами через заголовок `traceparent`. Serilog/ECS уже
@@ -71,6 +102,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<NotesDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<AuthDbContext>().Database.MigrateAsync();
 }
 
 app.UseExceptionHandler();
@@ -85,6 +117,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

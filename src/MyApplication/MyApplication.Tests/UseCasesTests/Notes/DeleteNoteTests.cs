@@ -13,27 +13,27 @@ public class DeleteNoteTests : NoteServiceTestBase
     public async Task DeleteAsync_ForExistingNote_RemovesIt()
     {
         // Arrange
-        var created = await Sut.CreateAsync("Заголовок", "Текст", CancellationToken.None);
+        var created = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст", CancellationToken.None);
 
         // Act
-        await Sut.DeleteAsync(created.Id, CancellationToken.None);
+        await Sut.DeleteAsync(CallerUserId, created.Id, CancellationToken.None);
 
         // Assert
         await Assert.ThrowsAsync<NoteNotFoundException>(
-            () => Sut.GetByIdAsync(created.Id, CancellationToken.None));
+            () => Sut.GetByIdAsync(CallerUserId, created.Id, CancellationToken.None));
     }
 
     [Fact]
     public async Task DeleteAsync_ForExistingNote_RemovesItFromList()
     {
         // Arrange
-        var created = await Sut.CreateAsync("Заголовок", "Текст", CancellationToken.None);
+        var created = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст", CancellationToken.None);
 
         // Act
-        await Sut.DeleteAsync(created.Id, CancellationToken.None);
+        await Sut.DeleteAsync(CallerUserId, created.Id, CancellationToken.None);
 
         // Assert
-        var notes = await Sut.GetAllAsync(0, 50, CancellationToken.None);
+        var notes = await Sut.GetAllAsync(CallerUserId, 0, 50, CancellationToken.None);
         Assert.DoesNotContain(notes, note => note.Id == created.Id);
     }
 
@@ -44,6 +44,18 @@ public class DeleteNoteTests : NoteServiceTestBase
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteNotFoundException>(
-            () => Sut.DeleteAsync(Guid.NewGuid(), CancellationToken.None));
+            () => Sut.DeleteAsync(CallerUserId, Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ForNoteOwnedByAnotherUser_ThrowsNoteAccessDeniedException()
+    {
+        // Arrange
+        var created = await Sut.CreateAsync(OtherUserId, "Заголовок", "Текст", CancellationToken.None);
+
+        // Act
+        // Assert
+        await Assert.ThrowsAsync<NoteAccessDeniedException>(
+            () => Sut.DeleteAsync(CallerUserId, created.Id, CancellationToken.None));
     }
 }

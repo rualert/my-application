@@ -16,7 +16,7 @@ public class CreateNoteTests : NoteServiceTestBase
     {
         // Arrange
         // Act
-        var note = await Sut.CreateAsync("Заголовок", "Текст заметки", CancellationToken.None);
+        var note = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст заметки", CancellationToken.None);
 
         // Assert
         Assert.NotEqual(Guid.Empty, note.Id);
@@ -30,7 +30,7 @@ public class CreateNoteTests : NoteServiceTestBase
     {
         // Arrange
         // Act
-        var note = await Sut.CreateAsync("Заголовок", string.Empty, CancellationToken.None);
+        var note = await Sut.CreateAsync(CallerUserId, "Заголовок", string.Empty, CancellationToken.None);
 
         // Assert
         Assert.Equal(string.Empty, note.Text);
@@ -45,7 +45,7 @@ public class CreateNoteTests : NoteServiceTestBase
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteValidationException>(
-            () => Sut.CreateAsync(title, "Текст", CancellationToken.None));
+            () => Sut.CreateAsync(CallerUserId, title, "Текст", CancellationToken.None));
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class CreateNoteTests : NoteServiceTestBase
         var title = new string('a', 1024);
 
         // Act
-        var note = await Sut.CreateAsync(title, "Текст", CancellationToken.None);
+        var note = await Sut.CreateAsync(CallerUserId, title, "Текст", CancellationToken.None);
 
         // Assert
         Assert.Equal(title, note.Title);
@@ -70,7 +70,7 @@ public class CreateNoteTests : NoteServiceTestBase
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteValidationException>(
-            () => Sut.CreateAsync(title, "Текст", CancellationToken.None));
+            () => Sut.CreateAsync(CallerUserId, title, "Текст", CancellationToken.None));
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class CreateNoteTests : NoteServiceTestBase
         var text = new string('a', 1024 * 1024);
 
         // Act
-        var note = await Sut.CreateAsync("Заголовок", text, CancellationToken.None);
+        var note = await Sut.CreateAsync(CallerUserId, "Заголовок", text, CancellationToken.None);
 
         // Assert
         Assert.Equal(text.Length, note.Text.Length);
@@ -95,7 +95,7 @@ public class CreateNoteTests : NoteServiceTestBase
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteValidationException>(
-            () => Sut.CreateAsync("Заголовок", text, CancellationToken.None));
+            () => Sut.CreateAsync(CallerUserId, "Заголовок", text, CancellationToken.None));
     }
 
     [Fact]
@@ -105,6 +105,6 @@ public class CreateNoteTests : NoteServiceTestBase
         // Act
         // Assert
         await Assert.ThrowsAsync<ArgumentNullException>(
-            () => Sut.CreateAsync("Заголовок", null!, CancellationToken.None));
+            () => Sut.CreateAsync(CallerUserId, "Заголовок", null!, CancellationToken.None));
     }
 }

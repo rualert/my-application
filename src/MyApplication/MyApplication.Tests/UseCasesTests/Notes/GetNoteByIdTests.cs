@@ -13,10 +13,10 @@ public class GetNoteByIdTests : NoteServiceTestBase
     public async Task GetByIdAsync_ForExistingNote_ReturnsFullNote()
     {
         // Arrange
-        var created = await Sut.CreateAsync("Заголовок", "Текст заметки", CancellationToken.None);
+        var created = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст заметки", CancellationToken.None);
 
         // Act
-        var note = await Sut.GetByIdAsync(created.Id, CancellationToken.None);
+        var note = await Sut.GetByIdAsync(CallerUserId, created.Id, CancellationToken.None);
 
         // Assert
         Assert.Equal(created.Id, note.Id);
@@ -33,6 +33,18 @@ public class GetNoteByIdTests : NoteServiceTestBase
         // Act
         // Assert
         await Assert.ThrowsAsync<NoteNotFoundException>(
-            () => Sut.GetByIdAsync(Guid.NewGuid(), CancellationToken.None));
+            () => Sut.GetByIdAsync(CallerUserId, Guid.NewGuid(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ForNoteOwnedByAnotherUser_ThrowsNoteAccessDeniedException()
+    {
+        // Arrange
+        var created = await Sut.CreateAsync(OtherUserId, "Заголовок", "Текст заметки", CancellationToken.None);
+
+        // Act
+        // Assert
+        await Assert.ThrowsAsync<NoteAccessDeniedException>(
+            () => Sut.GetByIdAsync(CallerUserId, created.Id, CancellationToken.None));
     }
 }
