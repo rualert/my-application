@@ -1,9 +1,18 @@
-# Стек "приложение": только API, разворачивается независимо от окружений ELK/БД.
+
+# Стек "приложение": API + веб-интерфейс (MyApplication.Web.UI), разворачивается
+# независимо от окружений ELK/БД.
 # Требует, чтобы сеть `elastic` уже существовала (создаётся ci/docker-compose.elk.yml).
 # Также требует, чтобы сервис `postgres` из ci/docker-compose.db.yml был доступен по
 # этой сети до старта — в отличие от логов/трейсинга, приложение применяет
 # миграции EF Core при старте и не запустится, если Postgres ещё не поднят.
 # Запуск (из корня репозитория): docker compose -f ci/docker-compose.app.yml up -d --build
+
+# Явное имя проекта — без него Compose вывел бы его из каталога самого этого
+# файла (`ci`), а не из корня репозитория, и получил бы контейнеры/сети с
+# префиксом `ci_` вместо `myapplication_`, что ломает docker-compose.load-tests.yml
+# и любые уже поднятые этим файлом контейнеры (та же причина, что и в
+# docker-compose.load-tests.yml — см. его комментарий).
+name: myapplication
 
 services:
   myapplication-api:
@@ -20,6 +29,25 @@ services:
       - ConnectionStrings__Notes=Host=postgres;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication
     ports:
       - "8080:8080"
+    networks:
+      - elastic
+
+  # nginx отдаёт статику UI и проксирует /Notes на myapplication-api (см.
+  # ci/nginx.conf) — общий origin для браузера, без CORS. Сеть elastic здесь
+  # используется просто как общая сеть стека (см. её описание выше), чтобы
+  # nginx мог обратиться к API по имени сервиса.
+  myapplication-web-ui:
+    build:
+      context: ..
+      dockerfile: ci/Dockerfile.web-ui
+    container_name: myapplication-web-ui
+    ports:
+      # Порт 80 на хосте зарезервирован Windows (System/HTTP.sys) на машине
+      # разработки — 8082 снаружи, внутри контейнера nginx по-прежнему
+      # слушает 80 (см. ci/nginx.conf), как и требует спека UI.
+      - "8082:80"
+    depends_on:
+      - myapplication-api
     networks:
       - elastic
 

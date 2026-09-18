@@ -3,6 +3,8 @@
 **/.vs/
 **/.idea/
 **/*.user
+**/node_modules/
+**/dist/
 .git/
 .gitignore
 Dockerfile

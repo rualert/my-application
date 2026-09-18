@@ -1,18 +1,19 @@
 # MyApplication
 
-ASP.NET Core Web API (.NET 10). Логи пишутся через [Serilog](https://serilog.net/) напрямую в Elasticsearch (формат ECS), а каждый запрос трассируется через [OpenTelemetry](https://opentelemetry.io/) — и то, и другое можно смотреть в Kibana. Данные (сейчас — заметки) хранятся в PostgreSQL.
+ASP.NET Core Web API (.NET 10) плюс React-интерфейс (`MyApplication.Web.UI`). Логи пишутся через [Serilog](https://serilog.net/) напрямую в Elasticsearch (формат ECS), а каждый запрос трассируется через [OpenTelemetry](https://opentelemetry.io/) — и то, и другое можно смотреть в Kibana. Данные (сейчас — заметки) хранятся в PostgreSQL.
 
 Приложение и его окружение (логи/трейсинг, база данных) разворачиваются как **отдельные, независимые Docker Compose стеки**, каждый со своим образом(-ами):
 
 - `ci/docker-compose.elk.yml` — **логи и трейсинг**: Elasticsearch + Kibana + APM Server.
 - `ci/docker-compose.db.yml` — **база данных**: PostgreSQL.
-- `ci/docker-compose.app.yml` — **приложение**: только `myapplication-api`.
+- `ci/docker-compose.app.yml` — **приложение**: `myapplication-api` и `myapplication-web-ui` (веб-интерфейс).
 
 Они взаимодействуют через общую внешнюю Docker-сеть (`elastic`) — сеть создаётся первым из стеков, `ci/docker-compose.elk.yml`. Любой из стеков можно собрать, развернуть, перезапустить или остановить, не трогая другие — при условии, что сеть уже существует. Есть одно исключение: в отличие от логов/трейсов (которые просто отключаются, если недоступны), при старте приложение применяет миграции EF Core к базе, поэтому PostgreSQL должен быть поднят и доступен **до** запуска приложения — иначе оно не стартует.
 
 ## Требования
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) — для локального запуска API
+- [Node.js](https://nodejs.org/) + npm — для локального запуска веб-интерфейса (`MyApplication.Web.UI`)
 - [Docker](https://www.docker.com/) + Docker Compose — для запуска в контейнерах
 
 ## 1. Запуск логов и трейсинга (Elasticsearch + Kibana + APM Server)
@@ -98,6 +99,31 @@ docker run -d --name myapplication-api -p 8080:8080 \
 ```
 
 Без `Elasticsearch__Uri`, указывающего на доступный кластер, отправка логов в Elasticsearch просто не будет подключаться (само приложение при этом продолжает работать); логи всё равно видны через `docker logs -f myapplication-api`. А вот `ConnectionStrings__Notes` обязателен и должен указывать на реально доступный из контейнера PostgreSQL — без него приложение упадёт при старте на этапе применения миграций.
+
+## 4. Запуск веб-интерфейса (MyApplication.Web.UI)
+
+### Вариант A — локально через Vite dev-сервер
+
+Требует запущенного API (шаг 3, вариант A, порт `5184` — на него по умолчанию настроен прокси в `vite.config.ts`).
+
+```bash
+cd src/MyApplication.Web.UI
+npm install --global=false   # см. .npmrc — на некоторых машинах npm install по умолчанию ставит пакеты глобально
+npm run dev                  # дев-сервер с hot reload, http://localhost:5173
+npm run build                # проверка типов + продакшн-сборка в dist/
+```
+
+Дев-сервер проксирует запросы `/Notes` на `http://localhost:5184`, поэтому в разработке не нужно настраивать CORS.
+
+### Вариант B — отдельным Docker Compose стеком (вместе с API)
+
+Требует того же, что и API в Варианте B (сеть `elastic`, поднятый `postgres`).
+
+```bash
+docker compose -f ci/docker-compose.app.yml up -d --build
+```
+
+Веб-интерфейс будет доступен по адресу `http://localhost:80`. Внутри контейнера nginx отдаёт собранную статику и проксирует `/Notes` на `myapplication-api:8080` (см. `ci/nginx.conf`) — браузер обращается к единому origin, без CORS.
 
 ## Просмотр логов в Kibana
 
