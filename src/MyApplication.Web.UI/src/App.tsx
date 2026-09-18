@@ -1,5 +1,6 @@
 import { Loader, MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AppHeader } from "./auth/AppHeader";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { GoogleLoginButton } from "./auth/GoogleLoginButton";
 import { NotesApp } from "./notes/components/NotesApp";
@@ -27,7 +28,14 @@ function AuthGate() {
     );
   }
 
-  return <NotesApp />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw" }}>
+      <AppHeader />
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <NotesApp />
+      </div>
+    </div>
+  );
 }
 
 export function App() {

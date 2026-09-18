@@ -7,6 +7,7 @@ import { setAccessToken } from "./tokenStore";
 interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
+  userName: string | null;
   login: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -21,12 +22,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userName, setUserName] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
     setOnSessionExpired(() => {
       setAccessToken(null);
       setIsAuthenticated(false);
+      setUserName(null);
       queryClient.clear();
     });
     return () => setOnSessionExpired(null);
@@ -37,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((auth) => {
         setAccessToken(auth.accessToken);
         setIsAuthenticated(true);
+        setUserName(auth.userName);
       })
       .catch(() => {
         setIsAuthenticated(false);
@@ -48,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const auth = await loginWithGoogle(idToken);
     setAccessToken(auth.accessToken);
     setIsAuthenticated(true);
+    setUserName(auth.userName);
   }
 
   async function logout(): Promise<void> {
@@ -56,11 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setAccessToken(null);
       setIsAuthenticated(false);
+      setUserName(null);
       queryClient.clear();
     }
   }
 
-  return <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, userName, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

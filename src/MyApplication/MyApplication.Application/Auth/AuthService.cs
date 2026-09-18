@@ -98,7 +98,7 @@ public class AuthService : IAuthService
         await _refreshTokenRepository.AddAsync(refreshToken, cancellationToken);
         await _refreshTokenRepository.SaveChangesAsync(cancellationToken);
 
-        return new AuthResult(accessToken.Value, accessToken.ExpiresAt, rawRefreshToken, refreshTokenExpiresAt);
+        return new AuthResult(accessToken.Value, accessToken.ExpiresAt, rawRefreshToken, refreshTokenExpiresAt, user.Name);
     }
 
     private static string GenerateRawToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));

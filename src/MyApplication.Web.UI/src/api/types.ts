@@ -29,4 +29,5 @@ export interface UpdateNoteRequest {
 export interface AuthResponse {
   accessToken: string;
   expiresAt: string;
+  userName: string;
 }

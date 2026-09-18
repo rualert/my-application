@@ -1,7 +1,6 @@
 import { ActionIcon, Group, Loader, NavLink, ScrollArea, Stack, Text, Tooltip } from "@mantine/core";
-import { LogOut, PanelLeftClose, PanelLeftOpen, Plus, RotateCw, Trash2 } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Plus, RotateCw, Trash2 } from "lucide-react";
 import { useRef } from "react";
-import { useAuth } from "../../auth/AuthProvider";
 import { displayTitle, UNTITLED_TITLE } from "../domain";
 import { useCreateNote } from "../hooks/useCreateNote";
 import { useDeleteNote } from "../hooks/useDeleteNote";
@@ -21,7 +20,6 @@ export function NotesListPanel({ collapsed, onToggleCollapse, selectedNoteId, on
   const createMutation = useCreateNote();
   const deleteMutation = useDeleteNote();
   const viewportRef = useRef<HTMLDivElement>(null);
-  const { logout } = useAuth();
 
   const handleScrollPositionChange = () => {
     const viewport = viewportRef.current;
@@ -106,11 +104,6 @@ export function NotesListPanel({ collapsed, onToggleCollapse, selectedNoteId, on
             onClick={handleDelete}
           >
             <Trash2 size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Выйти">
-          <ActionIcon aria-label="Выйти" variant="subtle" onClick={() => void logout()}>
-            <LogOut size={18} />
           </ActionIcon>
         </Tooltip>
       </Group>

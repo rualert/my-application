@@ -40,7 +40,7 @@ public class AuthController : ControllerBase
     {
         var result = await _authService.LoginWithGoogleAsync(request.IdToken, cancellationToken);
         SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiresAt);
-        return Ok(new AuthResponse(result.AccessToken, result.AccessTokenExpiresAt));
+        return Ok(new AuthResponse(result.AccessToken, result.AccessTokenExpiresAt, result.UserName));
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public class AuthController : ControllerBase
 
         var result = await _authService.RefreshAsync(refreshToken, cancellationToken);
         SetRefreshTokenCookie(result.RefreshToken, result.RefreshTokenExpiresAt);
-        return Ok(new AuthResponse(result.AccessToken, result.AccessTokenExpiresAt));
+        return Ok(new AuthResponse(result.AccessToken, result.AccessTokenExpiresAt, result.UserName));
     }
 
     /// <summary>
