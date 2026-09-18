@@ -22,6 +22,30 @@
 и не начав генерировать нагрузку — снаружи это выглядит так, будто
 `SEED_COUNT` «не применился».
 
+## Авторизация
+
+`/Notes` защищён JWT-авторизацией и приватен по пользователю (см.
+`NotesController`/`NoteService` в основном `CLAUDE.md`) — каждый сценарий
+логинится один раз в `setup()` (`lib/auth.js`, `loginLoadTestUser()`) через
+настоящий `POST /Auth/google` и дальше прикладывает `Authorization: Bearer`
+ко всем запросам (сидированию и самой нагрузке) от имени одного и того же
+пользователя. Настоящий Google недоступен/не нужен для измерения RPS, поэтому
+изолированный стенд (`ci/docker-compose.load-tests-db.yml`) запускает API с
+`ASPNETCORE_ENVIRONMENT=LoadTest`, при котором `Program.cs` подменяет
+`IGoogleIdTokenValidator` двойником (`LoadTestGoogleIdTokenValidator`),
+выводящим профиль прямо из переданного `idToken` — тот же приём, что и в
+смок-тестах для `FakeGoogleIdTokenValidator`. Access token живёт на весь
+прогон без обновления, поэтому у изолированного стенда `Jwt:AccessTokenLifetimeMinutes`
+поднят до 60 минут — если когда-нибудь понадобится гонять ступени дольше
+этого времени суммарно, либо увеличьте это значение, либо добавьте в
+сценарии повторный логин/`POST /Auth/refresh`.
+
+**Этот механизм — только для изолированного нагрузочного стенда.** Если
+запускать сценарии вручную против обычного dev-стека (`ci/docker-compose.app.yml`,
+вариант B ниже), там `ASPNETCORE_ENVIRONMENT=Production` и настоящий
+`GoogleIdTokenValidator` — фиктивный `idToken` из `lib/auth.js` там получит
+401, и сценарий упадёт в `setup()`.
+
 ## Как это ищет максимальный RPS
 
 Executor — [`ramping-arrival-rate`](https://grafana.com/docs/k6/latest/using-k6/scenarios/executors/ramping-arrival-rate/):
@@ -82,7 +106,7 @@ InfluxDB нет retention-политики "хранить вечно"). Thresho
 только `ci/docker-compose.load-tests.yml` (шаг 1 ниже). Посмотреть, что осталось
 в изолированной базе после прогона (не удаляя её сразу) — флаг `-KeepDb`,
 удалить вручную потом:
-`docker compose -p myapplication-loadtest -f ci/docker-compose.load-tests-db.yml down -v`.
+`docker compose -p myapplication-load-tests -f ci/docker-compose.load-tests-db.yml down -v`.
 
 ## Запуск
 
@@ -120,32 +144,33 @@ cd load-tests/scripts
 #### Вариант B — напрямую через Docker-образ k6
 
 **В отличие от варианта A, изолированный стек здесь сам себя не поднимает и
-не удаляет** — либо поднимите его вручную (`docker compose -p myapplication-loadtest
+не удаляет** — либо поднимите его вручную (`docker compose -p myapplication-load-tests
 -f ci/docker-compose.load-tests-db.yml up -d --build`, порт приложения — 8081,
 не забудьте потом `down -v`), либо явно нацельтесь на обычный dev-стек,
 понимая, что `SEED_COUNT` останется там навсегда.
 
-Подключенный к сети стека из шага 1 (`myapplication_default` — имя сети по
-умолчанию для `ci/docker-compose.load-tests.yml` в этом репозитории; проверить
-точное имя: `docker network ls`):
+Подключенный к сети стека из шага 1 (`myapplication-load-tests-infra_default` —
+имя сети по умолчанию для `ci/docker-compose.load-tests.yml` в этом репозитории
+(имя проекта `myapplication-load-tests-infra`); проверить точное имя:
+`docker network ls`):
 
 ```bash
 docker run --rm -i \
-  --network myapplication_default \
+  --network myapplication-load-tests-infra_default \
   -e BASE_URL=http://host.docker.internal:8081 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
   grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-list.js
 
 docker run --rm -i \
-  --network myapplication_default \
+  --network myapplication-load-tests-infra_default \
   -e BASE_URL=http://host.docker.internal:8081 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
   grafana/k6 run --out influxdb=http://influxdb:8086/k6 scenarios/notes-get-by-id.js
 
 docker run --rm -i \
-  --network myapplication_default \
+  --network myapplication-load-tests-infra_default \
   -e BASE_URL=http://host.docker.internal:8081 \
   -v "$(pwd)/load-tests:/load-tests" \
   -w /load-tests \
@@ -185,7 +210,7 @@ Docker напрямую (изолированный стек уже должен
 
 ```bash
 docker run --rm -i \
-  --network myapplication_default \
+  --network myapplication-load-tests-infra_default \
   -e BASE_URL=http://host.docker.internal:8081 \
   -e SEED_COUNT=5 \
   -e STAGE_DURATION=5s \

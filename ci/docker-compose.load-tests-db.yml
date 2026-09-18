@@ -39,8 +39,21 @@ services:
       dockerfile: ci/Dockerfile
     container_name: myapplication-api-loadtest
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      # LoadTest (не Production) — переключает регистрацию IGoogleIdTokenValidator
+      # на LoadTestGoogleIdTokenValidator (см. Program.cs): настоящие серверы
+      # Google недоступны/не нужны для измерения RPS, а k6 логинится фиктивным
+      # idToken через настоящий POST /Auth/google (см. load-tests/lib/auth.js).
+      - ASPNETCORE_ENVIRONMENT=LoadTest
       - ConnectionStrings__Notes=Host=postgres-loadtest;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication
+      # AuthDbContext (own DbSet<User>/DbSet<RefreshToken>) — без этой строки
+      # он падает на ConnectionStrings:Users по умолчанию из appsettings.json
+      # (localhost), который внутри контейнера ведёт в никуда, и MigrateAsync()
+      # при старте роняет всё приложение.
+      - ConnectionStrings__Users=Host=postgres-loadtest;Port=5432;Database=myapplication;Username=myapplication;Password=myapplication
+      # Запас, чтобы access token не истёк за время одного прогона (несколько
+      # ступеней по STAGE_DURATION) — k6-сценарии логинятся один раз в setup()
+      # и не реализуют refresh.
+      - Jwt__AccessTokenLifetimeMinutes=60
     ports:
       - "8081:8080"
     depends_on:

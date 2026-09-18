@@ -53,7 +53,19 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Users")));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-builder.Services.AddScoped<IGoogleIdTokenValidator, GoogleIdTokenValidator>();
+// В изолированном нагрузочном стенде (ASPNETCORE_ENVIRONMENT=LoadTest, см.
+// ci/docker-compose.load-tests-db.yml) настоящие серверы Google недоступны/не
+// нужны для измерения RPS — подменяем валидатор двойником, который выводит
+// профиль прямо из переданного idToken (тот же приём, что и в смок-тестах, см.
+// MyApplication.Infrastructure.Auth.LoadTestGoogleIdTokenValidator).
+if (builder.Environment.IsEnvironment("LoadTest"))
+{
+    builder.Services.AddScoped<IGoogleIdTokenValidator, LoadTestGoogleIdTokenValidator>();
+}
+else
+{
+    builder.Services.AddScoped<IGoogleIdTokenValidator, GoogleIdTokenValidator>();
+}
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 

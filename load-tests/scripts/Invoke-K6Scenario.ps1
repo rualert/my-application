@@ -30,7 +30,9 @@
 
 .PARAMETER Network
     Docker-сеть, к которой подключается контейнер k6 — нужна, чтобы достучаться
-    до InfluxDB по имени контейнера. Сеть создаётся ci/docker-compose.load-tests.yml.
+    до InfluxDB по имени контейнера. Сеть создаётся ci/docker-compose.load-tests.yml
+    (имя проекта myapplication-load-tests-infra, поэтому сеть по умолчанию —
+    myapplication-load-tests-infra_default, а не myapplication_default).
 
 .PARAMETER InfluxUrl
     Адрес InfluxDB для записи метрик (виден из сети $Network).
@@ -52,7 +54,7 @@
     Не удалять изолированный стек БД/приложения после прогона (по умолчанию
     удаляется всегда, вместе с томом данных) — полезно, чтобы после прогона
     вручную посмотреть, что осталось в базе. Удалить вручную потом:
-    docker compose -p myapplication-loadtest -f ci/docker-compose.load-tests-db.yml down -v
+    docker compose -p myapplication-load-tests -f ci/docker-compose.load-tests-db.yml down -v
 
 .EXAMPLE
     ./Invoke-K6Scenario.ps1 -ScenarioFile notes-list.js
@@ -68,7 +70,7 @@ param(
 
     [int]$AppPort = 8081,
     [string]$BaseUrl = "http://host.docker.internal:$AppPort",
-    [string]$Network = 'myapplication_default',
+    [string]$Network = 'myapplication-load-tests-infra_default',
     [string]$InfluxUrl = 'http://influxdb:8086/k6',
     [int]$SeedCount,
     [string]$StageDuration,
@@ -88,7 +90,7 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $loadTestDbCompose = Join-Path $repoRoot 'ci/docker-compose.load-tests-db.yml'
 # Отдельное имя проекта (-p) — чтобы этот стек жил в своей сети/неймспейсе
 # контейнеров, а не в общем myapplication_default вместе с dev-стеками.
-$composeArgs = @('-p', 'myapplication-loadtest', '-f', $loadTestDbCompose)
+$composeArgs = @('-p', 'myapplication-load-tests', '-f', $loadTestDbCompose)
 
 Write-Host "Starting isolated DB + app stack for this run (ci/docker-compose.load-tests-db.yml)..."
 docker compose @composeArgs up -d --build
@@ -100,6 +102,12 @@ try {
     # У приложения нет health-эндпоинта и в образе нет curl/wget для
     # Docker-level healthcheck — опрашиваем с хоста напрямую, пока
     # GET /Notes не ответит (это заодно означает, что миграции применились).
+    # /Notes защищён авторизацией (см. Auth) — у этой проверки ещё нет токена
+    # (логин происходит позже, в setup() самого k6-сценария), поэтому 401
+    # тоже означает готовность: приложение поднялось и уже дошло до
+    # JWT-мидлвари, а не просто не отвечает. Ждём именно 401 или 2xx — любая
+    # другая ошибка (недоступен порт, 5xx и т.п.) продолжает считаться "не
+    # готово".
     $readyUrl = "http://localhost:$AppPort/Notes"
     $deadline = (Get-Date).AddSeconds(60)
     $ready = $false
@@ -109,6 +117,10 @@ try {
             $ready = $true
             break
         } catch {
+            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 401) {
+                $ready = $true
+                break
+            }
             Start-Sleep -Seconds 1
         }
     }
@@ -137,7 +149,7 @@ try {
 } finally {
     if ($KeepDb) {
         Write-Host "-KeepDb passed - leaving ci/docker-compose.load-tests-db.yml up. Remove manually with:"
-        Write-Host "  docker compose -p myapplication-loadtest -f `"$loadTestDbCompose`" down -v"
+        Write-Host "  docker compose -p myapplication-load-tests -f `"$loadTestDbCompose`" down -v"
     } else {
         Write-Host "Tearing down the isolated DB + app stack (with its data volume)..."
         docker compose @composeArgs down -v
