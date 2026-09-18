@@ -2,7 +2,7 @@ import { Loader, MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppHeader } from "./auth/AppHeader";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
-import { GoogleLoginButton } from "./auth/GoogleLoginButton";
+import { LoginScreen } from "./auth/LoginScreen";
 import { NotesApp } from "./notes/components/NotesApp";
 
 import "@mantine/core/styles.css";
@@ -21,11 +21,7 @@ function AuthGate() {
   }
 
   if (!isAuthenticated) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
-        <GoogleLoginButton />
-      </div>
-    );
+    return <LoginScreen />;
   }
 
   return (

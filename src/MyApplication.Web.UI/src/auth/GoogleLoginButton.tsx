@@ -59,6 +59,7 @@ export function GoogleLoginButton() {
         theme: "outline",
         size: "large",
         text: "signin_with",
+        shape: "pill",
         locale: "ru",
       });
     }
