@@ -24,4 +24,10 @@ COPY --from=build /app/dist /usr/share/nginx/html
 COPY ci/nginx.conf.template /etc/nginx/templates/default.conf.template
 ENV PORT=80
 ENV API_INTERNAL_ADDRESS=myapplication-api:8080
+# Без этого /docker-entrypoint.d/15-local-resolvers.envsh — скрипт,
+# заполняющий ${NGINX_LOCAL_RESOLVERS} для nginx.conf.template (см. его
+# комментарий) — просто ничего не делает (no-op по своему собственному
+# условию), и в отрендеренном конфиге остаётся буквальная строка
+# "${NGINX_LOCAL_RESOLVERS}" вместо реального resolver-адреса.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 EXPOSE 80
