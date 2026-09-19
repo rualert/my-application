@@ -123,7 +123,7 @@ npm run build                # проверка типов + продакшн-с
 docker compose -f ci/docker-compose.app.yml up -d --build
 ```
 
-Веб-интерфейс будет доступен по адресу `http://localhost:80`. Внутри контейнера nginx отдаёт собранную статику и проксирует `/Notes` на `myapplication-api:8080` (см. `ci/nginx.conf`) — браузер обращается к единому origin, без CORS.
+Веб-интерфейс будет доступен по адресу `http://localhost:80`. Внутри контейнера nginx отдаёт собранную статику и проксирует `/Notes` на `myapplication-api:8080` (см. `ci/nginx.conf.template`) — браузер обращается к единому origin, без CORS.
 
 ## Просмотр логов в Kibana
 
