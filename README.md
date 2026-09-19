@@ -123,7 +123,59 @@ npm run build                # проверка типов + продакшн-с
 docker compose -f ci/docker-compose.app.yml up -d --build
 ```
 
-Веб-интерфейс будет доступен по адресу `http://localhost:80`. Внутри контейнера nginx отдаёт собранную статику и проксирует `/Notes` на `myapplication-api:8080` (см. `ci/nginx.conf`) — браузер обращается к единому origin, без CORS.
+Веб-интерфейс будет доступен по адресу `http://localhost:80`. Внутри контейнера nginx отдаёт собранную статику и проксирует `/Notes` на `myapplication-api:8080` (см. `ci/nginx.conf.template`) — браузер обращается к единому origin, без CORS.
+
+## 5. Развёртывание в Railway (доступ из интернета)
+
+Приложение развёрнуто на [Railway](https://railway.com/) — публичный адрес: **https://web-ui-production-5b19.up.railway.app**.
+
+Проект `myapplication` (workspace `rualert's Projects`) состоит из трёх сервисов в окружении `production`:
+
+- **Postgres** — управляемая база данных (шаблон `postgres-ssl`), своя приватная сеть, наружу не смотрит.
+- **api** — `MyApplication.Api`, собирается из `ci/Dockerfile` (`build.builder = DOCKERFILE`, `build.dockerfilePath = ci/Dockerfile`, root directory — корень репозитория, как и локально). Публичного домена не имеет — виден только внутри проекта.
+- **web-ui** — `MyApplication.Web.UI`, собирается из `ci/Dockerfile.web-ui`. Единственный сервис с публичным доменом — та же схема "единый origin", что и в Docker Compose (шаг 4, вариант B): nginx отдаёт статику и проксирует `/Notes`/`/Auth` на `api` по приватной сети Railway, поэтому браузер работает с одним origin и без CORS.
+
+Так как локальное имя контейнера (`myapplication-api`) в Railway не существует, адрес `api` для nginx передаётся переменной окружения (см. `ci/nginx.conf.template`, `ci/Dockerfile.web-ui`):
+
+| Переменная | Сервис | Значение |
+|---|---|---|
+| `API_INTERNAL_ADDRESS` | web-ui | `${{api.RAILWAY_PRIVATE_DOMAIN}}:8080` |
+| `PORT` | web-ui | подставляется платформой автоматически |
+
+У `api` заданы:
+
+| Переменная | Значение |
+|---|---|
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `ConnectionStrings__Notes`, `ConnectionStrings__Users` | `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}};SSL Mode=Require;Trust Server Certificate=true` (шаблон `postgres-ssl` требует SSL, сертификат самоподписанный) |
+| `Jwt__Issuer`, `Jwt__Audience`, `Jwt__AccessTokenLifetimeMinutes`, `Jwt__SigningKey` | как локально, `SigningKey` — отдельный сгенерированный секрет |
+| `Google__ClientId` | реальный Client ID из Google Cloud Console (`mynotesapp-509010`) |
+
+`web-ui`'s `VITE_GOOGLE_CLIENT_ID` ссылается на `${{api.Google__ClientId}}`, чтобы значение задавалось один раз. Публичный домен добавлен в Authorized JavaScript origins этого OAuth-клиента — без этого Google-вход не работает.
+
+`Elasticsearch__Uri`/`OpenTelemetry__OtlpEndpoint` не заданы — на Railway нет ELK-стека, и оба интегрированы так, чтобы деградировать без ошибок (см. «Настройка логирования и трассировки» ниже): логи видны через `railway logs`, трейсинг просто выключен.
+
+### Работа с проектом
+
+```bash
+npm install -g @railway/cli   # один раз
+railway login                 # открывает браузер
+railway link --project myapplication
+```
+
+Передеплой сервиса из локального кода (из корня репозитория):
+
+```bash
+railway up --service api --detach -m "<сообщение>"
+railway up --service web-ui --detach -m "<сообщение>"
+```
+
+`--detach` только подтверждает загрузку, не факт успешного деплоя — статус проверяется отдельно:
+
+```bash
+railway deployment list --service api --json      # или web-ui
+railway logs --service api --lines 100            # runtime-логи
+```
 
 ## Просмотр логов в Kibana
 

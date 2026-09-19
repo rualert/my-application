@@ -1,5 +1,5 @@
 // Заметки в UI отдаются с того же origin, что и API — в проде через
-// прокси в nginx.conf, в разработке через прокси dev-сервера (vite.config.ts).
+// прокси в nginx.conf.template, в разработке через прокси dev-сервера (vite.config.ts).
 // Поэтому здесь достаточно относительных путей, без базового URL и без CORS.
 
 import { getAccessToken, setAccessToken } from "../auth/tokenStore";
