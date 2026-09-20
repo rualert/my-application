@@ -9,7 +9,8 @@ namespace MyApplication.Api;
 ///     Глобально маппит любое <see cref="DomainException"/> (включая исключения
 ///     слоя Application, которые от него наследуются) на код ответа: 401 для
 ///     ошибок аутентификации (невалидный/просроченный токен), 403 для доступа
-///     к чужому ресурсу, 400 для остальных нарушений бизнес-правил.
+///     к чужому ресурсу, 409 для конфликта версий при одновременном
+///     редактировании, 400 для остальных нарушений бизнес-правил.
 ///     Необработанные здесь исключения остаются 500 — их дальше обрабатывает
 ///     стандартный конвейер ASP.NET Core.
 /// </summary>
@@ -30,6 +31,7 @@ public class DomainExceptionHandler : IExceptionHandler
         {
             InvalidGoogleTokenException or InvalidRefreshTokenException => StatusCodes.Status401Unauthorized,
             NoteAccessDeniedException => StatusCodes.Status403Forbidden,
+            NoteConflictException => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status400BadRequest,
         };
         await httpContext.Response.WriteAsync(domainException.Message, cancellationToken);

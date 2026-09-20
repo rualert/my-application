@@ -60,8 +60,27 @@ public class NoteRepository : INoteRepository
     /// <summary>
     ///     Сохраняет все изменения контекста EF Core в базе данных.
     /// </summary>
-    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    /// <exception cref="NoteConflictException">
+    ///     UPDATE не затронул ни одной строки, потому что версия заметки в базе
+    ///     изменилась после её чтения (<c>Version</c> — токен параллелизма, см.
+    ///     <see cref="NotesDbContext.OnModelCreating"/>). Закрывает гонку между
+    ///     SELECT и UPDATE двух одновременных запросов: проверки версии в
+    ///     <c>NoteService</c> для неё недостаточно.
+    /// </exception>
+    public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
-        return _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            var conflictingNoteId = exception.Entries
+                .Select(entry => entry.Entity)
+                .OfType<Note>()
+                .Select(note => note.Id)
+                .FirstOrDefault();
+            throw new NoteConflictException(conflictingNoteId);
+        }
     }
 }

@@ -1,5 +1,5 @@
-import { ActionIcon, Group, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
-import { Eye, Pencil } from "lucide-react";
+import { ActionIcon, Alert, Button, Group, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { CloudDownload, CloudUpload, Eye, Pencil, TriangleAlert } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import type { NoteDetails } from "../../api/types";
@@ -71,6 +71,38 @@ export function NoteEditor({ note, mode, onModeChange }: NoteEditorProps) {
       </Group>
 
       <Stack style={{ flex: 1, overflow: "auto" }} p="md" gap="sm">
+        {autosave.hasConflict && (
+          // Заметку изменили в другом месте, наше сохранение отклонено. Ничего
+          // не решаем за пользователя: напечатанное остаётся на экране, пока он
+          // не выберет, чей вариант оставить (docs/docs/notes/web-ui.md).
+          <Alert color="yellow" icon={<TriangleAlert size={18} />} title="Заметка изменена в другом месте">
+            <Stack gap="xs" align="flex-start">
+              <Text size="sm">
+                Её отредактировали в другой вкладке или на другом устройстве, поэтому изменения не сохраняются.
+                Выберите, какой вариант оставить.
+              </Text>
+              <Group gap="xs">
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<CloudDownload size={16} />}
+                  onClick={autosave.reloadFromServer}
+                >
+                  Загрузить актуальную
+                </Button>
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<CloudUpload size={16} />}
+                  onClick={autosave.overwriteWithMine}
+                >
+                  Перезаписать моей
+                </Button>
+              </Group>
+            </Stack>
+          </Alert>
+        )}
+
         {mode === "edit" ? (
           <>
             <TextInput

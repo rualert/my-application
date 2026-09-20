@@ -26,6 +26,19 @@ public class CreateNoteTests : NoteServiceTestBase
     }
 
     [Fact]
+    public async Task CreateAsync_ReturnsNoteAtInitialVersion()
+    {
+        // Arrange
+        // Act
+        var created = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст заметки", CancellationToken.None);
+
+        // Assert
+        Assert.Equal(Note.InitialVersion, created.Version);
+        var loaded = await Sut.GetByIdAsync(CallerUserId, created.Id, CancellationToken.None);
+        Assert.Equal(Note.InitialVersion, loaded.Version);
+    }
+
+    [Fact]
     public async Task CreateAsync_WithEmptyText_Succeeds()
     {
         // Arrange

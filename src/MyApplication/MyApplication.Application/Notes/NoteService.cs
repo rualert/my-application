@@ -72,9 +72,17 @@ public class NoteService : INoteService
     /// <exception cref="NoteAccessDeniedException">Заметка принадлежит другому пользователю.</exception>
     /// <exception cref="ArgumentNullException">Текст заметки равен <c>null</c>.</exception>
     /// <exception cref="NoteValidationException">Заголовок или текст не проходят валидацию.</exception>
-    public async Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string? title, string text, CancellationToken cancellationToken)
+    /// <exception cref="NoteConflictException">
+    ///     Заметку изменили с версии <paramref name="expectedVersion"/>.
+    /// </exception>
+    public async Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string? title, string text, int expectedVersion, CancellationToken cancellationToken)
     {
         var note = await GetOwnedNoteAsync(callerUserId, id, cancellationToken);
+        if (note.Version != expectedVersion)
+        {
+            throw new NoteConflictException(id, expectedVersion, note.Version);
+        }
+
         note.Update(title, text);
         await _repository.SaveChangesAsync(cancellationToken);
         return ToDetails(note);
@@ -107,5 +115,5 @@ public class NoteService : INoteService
 
     private static NoteSummary ToSummary(Note note) => new(note.Id, note.Title, note.CreatedAt, note.UpdatedAt);
 
-    private static NoteDetails ToDetails(Note note) => new(note.Id, note.Title, note.Text, note.CreatedAt, note.UpdatedAt);
+    private static NoteDetails ToDetails(Note note) => new(note.Id, note.Title, note.Text, note.Version, note.CreatedAt, note.UpdatedAt);
 }

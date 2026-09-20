@@ -27,6 +27,10 @@ public class NotesDbContext : DbContext
             // Title необязателен: null — заметка без заголовка (см. Note.NormalizeTitle).
             builder.Property(note => note.Title).HasMaxLength(Note.MaxTitleLength);
             builder.Property(note => note.Text).IsRequired();
+            // Version — токен параллелизма: EF добавляет его в WHERE у UPDATE, так что
+            // два одновременных обновления одной заметки не затрут друг друга даже при
+            // совпавших проверках версии в NoteService (см. NoteRepository.SaveChangesAsync).
+            builder.Property(note => note.Version).IsRequired().IsConcurrencyToken();
             builder.Property(note => note.CreatedAt).IsRequired();
             builder.Property(note => note.UpdatedAt).IsRequired();
         });

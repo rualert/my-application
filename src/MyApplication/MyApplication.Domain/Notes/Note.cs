@@ -9,6 +9,7 @@ public class Note
 {
     public const int MaxTitleLength = 1024;
     public const int MaxTextBytes = 1024 * 1024;
+    public const int InitialVersion = 1;
 
     public Guid Id { get; }
     public Guid UserId { get; }
@@ -17,15 +18,22 @@ public class Note
     /// </summary>
     public string? Title { get; private set; }
     public string Text { get; private set; }
+    /// <summary>
+    ///     Версия заметки: <see cref="InitialVersion"/> у только что созданной,
+    ///     +1 на каждое успешное <see cref="Update"/>. По ней распознаётся
+    ///     редактирование устаревшей копии заметки (например, из второй вкладки).
+    /// </summary>
+    public int Version { get; private set; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    private Note(Guid id, Guid userId, string? title, string text, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+    private Note(Guid id, Guid userId, string? title, string text, int version, DateTimeOffset createdAt, DateTimeOffset updatedAt)
     {
         Id = id;
         UserId = userId;
         Title = title;
         Text = text;
+        Version = version;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
     }
@@ -35,7 +43,7 @@ public class Note
     ///     Пустой заголовок (<c>null</c>, пустая строка или одни пробелы) означает «без заголовка»
     ///     и хранится как <c>null</c>.
     /// </summary>
-    /// <returns>Новая заметка с сгенерированным идентификатором.</returns>
+    /// <returns>Новая заметка с сгенерированным идентификатором и версией <see cref="InitialVersion"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text"/> равен <c>null</c>.</exception>
     /// <exception cref="NoteValidationException">
     ///     Заголовок длиннее <see cref="MaxTitleLength"/> символов,
@@ -47,11 +55,12 @@ public class Note
         ValidateText(text);
 
         var now = DateTimeOffset.UtcNow;
-        return new Note(Guid.NewGuid(), userId, normalizedTitle, text, now, now);
+        return new Note(Guid.NewGuid(), userId, normalizedTitle, text, InitialVersion, now, now);
     }
 
     /// <summary>
-    ///     Обновляет заголовок и текст заметки, проставляя новую дату изменения.
+    ///     Обновляет заголовок и текст заметки, проставляя новую дату изменения
+    ///     и увеличивая <see cref="Version"/> на единицу.
     ///     Пустой заголовок (<c>null</c>, пустая строка или одни пробелы) означает «без заголовка»
     ///     и хранится как <c>null</c>.
     /// </summary>
@@ -67,6 +76,7 @@ public class Note
 
         Title = normalizedTitle;
         Text = text;
+        Version++;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
