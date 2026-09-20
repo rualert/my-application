@@ -3,21 +3,11 @@ import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
 import { setAccessToken } from "../auth/tokenStore";
 import { server } from "./server";
+import { installMatchMedia, resetViewport } from "./viewport";
 
 // Полифилы, без которых Mantine не рендерится в jsdom (см. mantine.dev/guides/vitest).
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }),
-});
+// matchMedia отвечает по ширине экрана, которую задаёт тест, — см. viewport.ts.
+installMatchMedia();
 
 class ResizeObserverStub {
   observe() {}
@@ -42,6 +32,7 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   setAccessToken(null);
+  resetViewport();
 });
 
 afterAll(() => server.close());

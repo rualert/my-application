@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: страница занимает весь экран телефона, включая область
+         под «чёлкой» и полосой жестов, а отступы под них задаёт сам интерфейс
+         (env(safe-area-inset-*), см. NoteEditor). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Заметки</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>

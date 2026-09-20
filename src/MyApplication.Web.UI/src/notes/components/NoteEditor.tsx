@@ -1,8 +1,9 @@
-import { ActionIcon, Alert, Button, Group, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
-import { CloudDownload, CloudUpload, Eye, Pencil, TriangleAlert } from "lucide-react";
+import { Alert, Button, Group, Stack, Text, Textarea, TextInput, Title } from "@mantine/core";
+import { CloudDownload, CloudUpload, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import type { NoteDetails } from "../../api/types";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { isUntitled, UNTITLED_TITLE } from "../domain";
 import { useNoteAutosave } from "../hooks/useNoteAutosave";
 import { useNow } from "../hooks/useNow";
@@ -11,12 +12,15 @@ import { formatSaveStatusText } from "../saveStatusText";
 
 const STATUS_TICK_MS = 30_000;
 
+// Шрифт мельче этого размера браузер на iOS считает мелким и увеличивает страницу,
+// как только курсор встаёт в поле (docs/docs/notes/web-ui.md, «Интерфейс для телефона»).
+const MOBILE_INPUT_FONT_SIZE = 16;
+
 export type EditorMode = "edit" | "view";
 
 interface NoteEditorProps {
   note: NoteDetails;
   mode: EditorMode;
-  onModeChange: (mode: EditorMode) => void;
   // Просят поставить курсор в редактор: в заголовок (новая заметка) или в начало
   // текста (зафиксирован выбор в поиске). Просьба живёт выше, потому что может прийти
   // раньше, чем заметка загрузилась и этот редактор появился; исполнив её (или сочтя
@@ -28,7 +32,8 @@ interface NoteEditorProps {
 // Монтируется заново для каждой заметки (key={note.id} в NoteEditorPanel):
 // черновик и автосохранение живут ровно столько, сколько открыта эта заметка,
 // а при закрытии хук досохраняет несохранённое (см. useNoteAutosave).
-export function NoteEditor({ note, mode, onModeChange, focusTarget, onFocusHandled }: NoteEditorProps) {
+export function NoteEditor({ note, mode, focusTarget, onFocusHandled }: NoteEditorProps) {
+  const isMobile = useIsMobile();
   const autosave = useNoteAutosave(note);
   const now = useNow(STATUS_TICK_MS);
   const untitled = isUntitled(autosave.title);
@@ -86,18 +91,6 @@ export function NoteEditor({ note, mode, onModeChange, focusTarget, onFocusHandl
 
   return (
     <Stack h="100%" gap={0}>
-      <Group justify="flex-end" p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
-        <Tooltip label={mode === "edit" ? "Просмотр" : "Редактирование"}>
-          <ActionIcon
-            aria-label={mode === "edit" ? "Просмотр" : "Редактирование"}
-            variant="subtle"
-            onClick={() => onModeChange(mode === "edit" ? "view" : "edit")}
-          >
-            {mode === "edit" ? <Eye size={18} /> : <Pencil size={18} />}
-          </ActionIcon>
-        </Tooltip>
-      </Group>
-
       {autosave.hasConflict && (
         // Заметку изменили в другом месте, наше сохранение отклонено. Ничего
         // не решаем за пользователя: напечатанное остаётся на экране, пока он
@@ -163,7 +156,10 @@ export function NoteEditor({ note, mode, onModeChange, focusTarget, onFocusHandl
               variant="unstyled"
               autosize
               minRows={12}
-              styles={{ root: { flex: 1 } }}
+              styles={{
+                root: { flex: 1 },
+                input: isMobile ? { fontSize: MOBILE_INPUT_FONT_SIZE } : undefined,
+              }}
             />
           </>
         ) : (
@@ -176,7 +172,19 @@ export function NoteEditor({ note, mode, onModeChange, focusTarget, onFocusHandl
         )}
       </Stack>
 
-      <Group justify="flex-end" p="xs" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+      {/* Нижний отступ на телефоне — не меньше системной полосы жестов: иначе строка
+          статуса прячется под ней (docs/docs/notes/web-ui.md, «Интерфейс для телефона»). */}
+      <Group
+        justify="flex-end"
+        px="xs"
+        pt="xs"
+        style={{
+          borderTop: "1px solid var(--mantine-color-gray-3)",
+          paddingBottom: isMobile
+            ? "max(var(--mantine-spacing-xs), env(safe-area-inset-bottom))"
+            : "var(--mantine-spacing-xs)",
+        }}
+      >
         <Text size="sm" c={autosave.error ? "red" : "dimmed"}>
           {autosave.error ? `Ошибка сохранения: ${autosave.error}` : statusText}
         </Text>
