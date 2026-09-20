@@ -111,6 +111,7 @@ cd src/MyApplication.Web.UI
 npm install --global=false   # см. .npmrc — на некоторых машинах npm install по умолчанию ставит пакеты глобально
 npm run dev                  # дев-сервер с hot reload, http://localhost:5173
 npm run build                # проверка типов + продакшн-сборка в dist/
+npm test                     # тесты веб-интерфейса (Vitest), см. раздел "Тесты"
 ```
 
 Дев-сервер проксирует запросы `/Notes` на `http://localhost:5184`, поэтому в разработке не нужно настраивать CORS.
@@ -252,6 +253,17 @@ dotnet test
 ```
 
 Для `ArchitectureTests`/`UseCasesTests` нужен только .NET SDK. Для `SmokeTests` дополнительно нужен запущенный Docker (поднимает временный PostgreSQL через Testcontainers).
+
+### Тесты веб-интерфейса
+
+У `MyApplication.Web.UI` свои тесты — [Vitest](https://vitest.dev/) + [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/) + [MSW](https://mswjs.io/) (не входят в `MyApplication.Tests`, нужен только Node). Принцип тот же, что и на бэкенде: чёрный ящик, настоящие компоненты, хуки, TanStack Query и fetch-клиент — подменяется только граница, то есть HTTP (MSW перехватывает запросы к `/Notes` и `/Auth`); свои модули (`notesApi`, хуки) не мокаются. Файлы `*.test.ts(x)` лежат рядом с кодом, который проверяют; общая обвязка (фейковый бэкенд заметок `FakeNotesBackend`, `renderWithProviders`, управление фейковым временем `advanceTime`, `setup.ts` с полифилами для Mantine в jsdom) — в `src/test/`. Стилистические соглашения те же, что для бэкенд-тестов: тело каждого теста размечено `// Arrange`, `// Act`, `// Assert`, если тестируемая система — отдельный объект (отрисованный компонент), он называется `sut`.
+
+Из `src/MyApplication.Web.UI/`:
+
+```bash
+npm test             # один прогон (vitest run)
+npm run test:watch   # режим наблюдения
+```
 
 ## Нагрузочное тестирование
 

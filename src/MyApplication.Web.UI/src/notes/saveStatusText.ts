@@ -7,7 +7,7 @@ const DAY_MS = 24 * HOUR_MS;
 const timeFormatter = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-// Правила статуса сохранения (docs/docs/notes/overview.md, раздел "Сохранение заметок"):
+// Правила статуса сохранения (docs/docs/notes/web-ui.md, раздел "Сохранение заметок"):
 // идёт запрос -> "Сохраняется…"; не более часа назад -> минуты; не более суток -> время; иначе -> дата.
 export function formatSaveStatusText(status: SaveStatus, lastSavedAt: Date | null, now: Date): string {
   if (status === "saving") {
