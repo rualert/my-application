@@ -68,6 +68,9 @@ else
 }
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+// Auth сообщает о регистрации нового пользователя через свой порт, а не зовёт
+// Notes напрямую; реализация (приветственная заметка) живёт в фиче Notes.
+builder.Services.AddScoped<IUserRegistrationHandler, WelcomeNoteRegistrationHandler>();
 
 // Собственные JWT (не Google) — Google участвует только в момент входа
 // (см. IGoogleIdTokenValidator), дальше фронт и API общаются через них.

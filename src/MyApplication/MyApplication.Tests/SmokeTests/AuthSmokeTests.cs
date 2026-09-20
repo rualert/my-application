@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using MyApplication.Api.Models;
 using MyApplication.Api.Models.Auth;
 using MyApplication.Tests.SmokeTests.Harness;
 
@@ -31,6 +32,24 @@ public class AuthSmokeTests : SmokeTestBase
         Assert.NotNull(auth);
         Assert.False(string.IsNullOrWhiteSpace(auth!.AccessToken));
         Assert.True(response.Headers.TryGetValues("Set-Cookie", out _));
+    }
+
+    [Fact]
+    public async Task Google_WelcomeNote_BlueSky()
+    {
+        // Arrange
+        var accessToken = await LoginAsync();
+
+        // Act
+        var response = await Sut.SendAsync(AuthorizedRequest(HttpMethod.Get, "/Notes?from=0&count=50", accessToken));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var notes = await response.Content.ReadFromJsonAsync<List<NoteSummaryResponse>>();
+        Assert.NotNull(notes);
+        var welcome = Assert.Single(notes!);
+        Assert.Equal("Добро пожаловать", welcome.Title);
     }
 
     [Fact]
