@@ -3,6 +3,7 @@ import { Check, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { UNTITLED_TITLE } from "../domain";
+import { useDoubleShift } from "../hooks/useDoubleShift";
 import { MIN_SEARCH_QUERY_LENGTH, useNotesSearch } from "../hooks/useNotesSearch";
 import { HighlightedText } from "./HighlightedText";
 
@@ -39,6 +40,16 @@ export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchB
     combobox.closeDropdown();
     combobox.targetRef.current?.focus();
   };
+
+  // Двойной Shift: курсор — в поле, запрос выделен целиком (сразу печатать новый или
+  // стрелкой оставить прежний). Фокус запускает обычный onFocus — новый заход в поиск.
+  useDoubleShift(() => {
+    const input = combobox.targetRef.current;
+    input?.focus();
+    if (input instanceof HTMLInputElement) {
+      input.select();
+    }
+  });
 
   const commit = () => {
     setQuery("");
@@ -125,7 +136,7 @@ export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchB
       <Combobox.Target>
         <TextInput
           aria-label="Поиск по заметкам"
-          placeholder="Поиск по заметкам"
+          placeholder="Поиск по заметкам · двойной Shift"
           leftSection={<Search size={16} />}
           rightSection={
             showLoader || showClear ? (

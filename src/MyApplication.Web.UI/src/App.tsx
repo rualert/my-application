@@ -32,13 +32,14 @@ function AuthGate() {
       <AppHeader
         openNoteId={selection.selectedNoteId}
         onPreviewNote={selection.select}
-        onCommitNote={selection.requestEditorFocus}
+        onCommitNote={selection.requestTextFocus}
       />
       <div style={{ flex: 1, minHeight: 0 }}>
         <NotesApp
           selectedNoteId={selection.selectedNoteId}
           onSelect={selection.select}
-          editorFocusRequested={selection.editorFocusRequested}
+          onCreated={selection.selectCreated}
+          editorFocus={selection.editorFocus}
           onEditorFocusHandled={selection.handleEditorFocusHandled}
         />
       </div>

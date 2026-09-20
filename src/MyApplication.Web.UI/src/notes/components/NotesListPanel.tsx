@@ -13,9 +13,10 @@ interface NotesListPanelProps {
   onToggleCollapse: () => void;
   selectedNoteId: string | null;
   onSelect: (id: string | null) => void;
+  onCreated: (id: string) => void;
 }
 
-export function NotesListPanel({ collapsed, onToggleCollapse, selectedNoteId, onSelect }: NotesListPanelProps) {
+export function NotesListPanel({ collapsed, onToggleCollapse, selectedNoteId, onSelect, onCreated }: NotesListPanelProps) {
   const notesQuery = useNotesList();
   const createMutation = useCreateNote();
   const deleteMutation = useDeleteNote();
@@ -35,7 +36,7 @@ export function NotesListPanel({ collapsed, onToggleCollapse, selectedNoteId, on
   const handleCreate = () => {
     createMutation.mutate(
       { title: null, text: "" },
-      { onSuccess: (created) => onSelect(created.id) },
+      { onSuccess: (created) => onCreated(created.id) },
     );
   };
 
