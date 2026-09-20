@@ -98,39 +98,50 @@ export function NoteEditor({ note, mode, onModeChange, focusTarget, onFocusHandl
         </Tooltip>
       </Group>
 
-      <Stack style={{ flex: 1, overflow: "auto" }} p="md" gap="sm">
-        {autosave.hasConflict && (
-          // Заметку изменили в другом месте, наше сохранение отклонено. Ничего
-          // не решаем за пользователя: напечатанное остаётся на экране, пока он
-          // не выберет, чей вариант оставить (docs/docs/notes/web-ui.md).
-          <Alert color="yellow" icon={<TriangleAlert size={18} />} title="Заметка изменена в другом месте">
-            <Stack gap="xs" align="flex-start">
-              <Text size="sm">
-                Её отредактировали в другой вкладке или на другом устройстве, поэтому изменения не сохраняются.
-                Выберите, какой вариант оставить.
-              </Text>
-              <Group gap="xs">
-                <Button
-                  size="xs"
-                  variant="default"
-                  leftSection={<CloudDownload size={16} />}
-                  onClick={autosave.reloadFromServer}
-                >
-                  Загрузить актуальную
-                </Button>
-                <Button
-                  size="xs"
-                  variant="default"
-                  leftSection={<CloudUpload size={16} />}
-                  onClick={autosave.overwriteWithMine}
-                >
-                  Перезаписать моей
-                </Button>
-              </Group>
-            </Stack>
-          </Alert>
-        )}
+      {autosave.hasConflict && (
+        // Заметку изменили в другом месте, наше сохранение отклонено. Ничего
+        // не решаем за пользователя: напечатанное остаётся на экране, пока он
+        // не выберет, чей вариант оставить (docs/docs/notes/web-ui.md).
+        // Предупреждение — вне прокручиваемой области ниже: внутри неё у длинной
+        // заметки оно уезжает за верхний край, и пользователь просто не видит,
+        // почему заметка перестала сохраняться. flexShrink: 0 — чтобы его не
+        // сжала растущая область текста.
+        <Alert
+          color="yellow"
+          icon={<TriangleAlert size={18} />}
+          title="Заметка изменена в другом месте"
+          m="md"
+          mb={0}
+          style={{ flexShrink: 0 }}
+        >
+          <Stack gap="xs" align="flex-start">
+            <Text size="sm">
+              Её отредактировали в другой вкладке или на другом устройстве, поэтому изменения не сохраняются. Выберите,
+              какой вариант оставить.
+            </Text>
+            <Group gap="xs">
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<CloudDownload size={16} />}
+                onClick={autosave.reloadFromServer}
+              >
+                Загрузить актуальную
+              </Button>
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<CloudUpload size={16} />}
+                onClick={autosave.overwriteWithMine}
+              >
+                Перезаписать моей
+              </Button>
+            </Group>
+          </Stack>
+        </Alert>
+      )}
 
+      <Stack style={{ flex: 1, overflow: "auto" }} p="md" gap="sm">
         {mode === "edit" ? (
           <>
             <TextInput
