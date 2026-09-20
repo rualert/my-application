@@ -26,6 +26,20 @@ public interface INoteRepository
     Task<IReadOnlyList<Note>> GetAllAsync(Guid userId, int from, int count, CancellationToken cancellationToken);
 
     /// <summary>
+    ///     Возвращает не более <paramref name="limit"/> заметок пользователя
+    ///     <paramref name="userId"/>, в которых нашёлся <paramref name="query"/>,
+    ///     от более релевантных к менее.
+    ///     Запрос ищется целиком (как одна фраза) и в заголовке, и в тексте, без
+    ///     учёта регистра; заметка находится и тогда, когда запрос набран с
+    ///     опечатками — по похожести написания.
+    ///     Порядок выдачи: сначала заметки с точным вхождением запроса в заголовке,
+    ///     затем с точным вхождением в тексте, затем с похожим заголовком, затем с
+    ///     похожим текстом; совпадения в обоих полях поднимают заметку выше, а при
+    ///     равной релевантности выше идёт изменённая позже.
+    /// </summary>
+    Task<IReadOnlyList<Note>> SearchAsync(Guid userId, string query, int limit, CancellationToken cancellationToken);
+
+    /// <summary>
     ///     Помечает заметку на удаление (без сохранения — см. <see cref="SaveChangesAsync"/>).
     /// </summary>
     void Remove(Note note);

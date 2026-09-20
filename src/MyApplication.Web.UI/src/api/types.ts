@@ -19,6 +19,21 @@ export interface NoteDetails {
   updatedAt: string;
 }
 
+// Результат поиска приходит размеченным: отрезки идут подряд, склеив их text,
+// получаем строку целиком, а отрезки с match — места совпадений с запросом
+// (в том числе найденные с опечатками, которые клиент сам разметить не смог бы).
+export interface HighlightedSegment {
+  text: string;
+  match: boolean;
+}
+
+export interface NoteSearchResult {
+  id: string;
+  // Пустой массив — заметка без заголовка.
+  title: HighlightedSegment[];
+  snippet: HighlightedSegment[];
+}
+
 export interface CreateNoteRequest {
   title: string | null;
   text: string;

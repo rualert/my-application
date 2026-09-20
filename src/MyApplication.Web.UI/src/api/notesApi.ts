@@ -1,10 +1,20 @@
 import { apiRequest } from "./client";
-import type { CreateNoteRequest, NoteDetails, NoteSummary, UpdateNoteRequest } from "./types";
+import type {
+  CreateNoteRequest,
+  NoteDetails,
+  NoteSearchResult,
+  NoteSummary,
+  UpdateNoteRequest,
+} from "./types";
 
 const BASE_PATH = "/Notes";
 
 export function listNotes(from: number, count: number, signal?: AbortSignal): Promise<NoteSummary[]> {
   return apiRequest(`${BASE_PATH}?from=${from}&count=${count}`, { signal });
+}
+
+export function searchNotes(query: string, signal?: AbortSignal): Promise<NoteSearchResult[]> {
+  return apiRequest(`${BASE_PATH}/search?query=${encodeURIComponent(query)}`, { signal });
 }
 
 export function getNote(id: string, signal?: AbortSignal): Promise<NoteDetails> {

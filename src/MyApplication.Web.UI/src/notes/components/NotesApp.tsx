@@ -5,9 +5,14 @@ import { NotesListPanel } from "./NotesListPanel";
 const EXPANDED_LIST_WIDTH = "30%";
 const COLLAPSED_LIST_WIDTH = "48px";
 
-export function NotesApp() {
+interface NotesAppProps {
+  // Выбранная заметка живёт выше: её выбирают и из списка, и из поиска в шапке.
+  selectedNoteId: string | null;
+  onSelect: (id: string | null) => void;
+}
+
+export function NotesApp({ selectedNoteId, onSelect }: NotesAppProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
 
   return (
     <div style={{ display: "flex", height: "100%", width: "100%" }}>
@@ -22,7 +27,7 @@ export function NotesApp() {
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed((value) => !value)}
           selectedNoteId={selectedNoteId}
-          onSelect={setSelectedNoteId}
+          onSelect={onSelect}
         />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>

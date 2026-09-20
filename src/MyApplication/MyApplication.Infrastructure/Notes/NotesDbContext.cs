@@ -16,6 +16,10 @@ public class NotesDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // pg_trgm — сравнение строк по триграммам: на нём держится поиск с
+        // опечатками (см. NoteRepository.SearchAsync).
+        modelBuilder.HasPostgresExtension("pg_trgm");
+
         modelBuilder.Entity<Note>(builder =>
         {
             builder.ToTable("notes");
@@ -33,6 +37,17 @@ public class NotesDbContext : DbContext
             builder.Property(note => note.Version).IsRequired().IsConcurrencyToken();
             builder.Property(note => note.CreatedAt).IsRequired();
             builder.Property(note => note.UpdatedAt).IsRequired();
+            // Триграммные GIN-индексы: ускоряют и поиск подстроки (ILIKE '%...%'),
+            // и поиск похожего фрагмента (оператор <%) в NoteRepository.SearchAsync —
+            // обычный B-tree ни тому, ни другому не помогает.
+            builder.HasIndex(note => note.Title)
+                .HasDatabaseName("IX_notes_Title_trgm")
+                .HasMethod("gin")
+                .HasOperators("gin_trgm_ops");
+            builder.HasIndex(note => note.Text)
+                .HasDatabaseName("IX_notes_Text_trgm")
+                .HasMethod("gin")
+                .HasOperators("gin_trgm_ops");
         });
     }
 }

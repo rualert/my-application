@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { NoteDetails, UpdateNoteRequest } from "../api/types";
+import type { NoteDetails, NoteSearchResult, UpdateNoteRequest } from "../api/types";
 
 export interface RecordedUpdate {
   id: string;
@@ -11,11 +11,15 @@ export interface RecordedUpdate {
 // управляют "запросом в полёте" и ошибками, не трогая клиентский код.
 export class FakeNotesBackend {
   readonly updates: RecordedUpdate[] = [];
+  // Каждый дошедший до сервера поисковый запрос — по ним видно, ушёл ли запрос вообще.
+  readonly searchQueries: string[] = [];
 
   private readonly notes = new Map<string, NoteDetails>();
   private updateGate: Promise<void> | null = null;
   private updateFailure: { status: number; message: string } | null = null;
   private updateCounter = 0;
+  private searchResults: NoteSearchResult[] = [];
+  private searchFailure: { status: number; message: string } | null = null;
 
   addNote(note: Partial<NoteDetails> & { id: string }): NoteDetails {
     const created: NoteDetails = {
@@ -59,7 +63,28 @@ export class FakeNotesBackend {
     this.updateFailure = { status, message };
   }
 
+  // Что вернёт поиск на любой запрос: размечает совпадения сервер, поэтому
+  // тесту достаточно задать готовую выдачу.
+  setSearchResults(results: NoteSearchResult[]): void {
+    this.searchResults = results;
+  }
+
+  failSearch(status: number, message: string): void {
+    this.searchFailure = { status, message };
+  }
+
   readonly handlers = [
+    // Раньше /Notes/:id — иначе тот перехватил бы /Notes/search как заметку с id "search".
+    http.get("/Notes/search", ({ request }) => {
+      this.searchQueries.push(new URL(request.url).searchParams.get("query") ?? "");
+
+      if (this.searchFailure) {
+        return new HttpResponse(this.searchFailure.message, { status: this.searchFailure.status });
+      }
+
+      return HttpResponse.json(this.searchResults);
+    }),
+
     http.get("/Notes/:id", ({ params }) => {
       const note = this.notes.get(params.id as string);
       return note ? HttpResponse.json(note) : new HttpResponse("Заметка не найдена", { status: 400 });

@@ -77,6 +77,29 @@ public class NotesSmokeTests : SmokeTestBase
     }
 
     [Fact]
+    public async Task Search_BlueSky()
+    {
+        // Arrange
+        var accessToken = await LoginAsync();
+        var createResponse = await Sut.SendAsync(AuthorizedRequest(
+            HttpMethod.Post, "/Notes", accessToken, JsonContent.Create(new CreateNoteRequest("Список покупок", "Молоко и хлеб"))));
+        var created = await createResponse.Content.ReadFromJsonAsync<NoteResponse>();
+
+        // Act
+        var response = await Sut.SendAsync(AuthorizedRequest(HttpMethod.Get, "/Notes/search?query=покуп", accessToken));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var results = await response.Content.ReadFromJsonAsync<List<NoteSearchResultResponse>>();
+        Assert.NotNull(results);
+        var found = Assert.Single(results!);
+        Assert.Equal(created!.Id, found.Id);
+        Assert.Equal("Список покупок", string.Concat(found.Title.Select(segment => segment.Text)));
+        Assert.Equal(["покуп"], found.Title.Where(segment => segment.Match).Select(segment => segment.Text));
+    }
+
+    [Fact]
     public async Task GetById_BlueSky()
     {
         // Arrange

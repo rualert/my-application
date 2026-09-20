@@ -1,14 +1,20 @@
 import { Group, Menu, Text, UnstyledButton } from "@mantine/core";
 import { ChevronDown, LogOut } from "lucide-react";
+import { NotesSearchBox } from "../notes/components/NotesSearchBox";
 import { useAuth } from "./AuthProvider";
 
 const APP_TITLE = "MyNotesApp";
+const SEARCH_WIDTH = 420;
+
+interface AppHeaderProps {
+  onSelectNote: (id: string) => void;
+}
 
 /**
- * Шапка приложения: название слева, имя пользователя с выпадающим меню
- * (кнопка «Выйти») справа.
+ * Шапка приложения: название слева, поиск по заметкам по центру, имя
+ * пользователя с выпадающим меню (кнопка «Выйти») справа.
  */
-export function AppHeader() {
+export function AppHeader({ onSelectNote }: AppHeaderProps) {
   const { userName, logout } = useAuth();
 
   return (
@@ -20,6 +26,9 @@ export function AppHeader() {
       style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}
     >
       <Text fw={700}>{APP_TITLE}</Text>
+      <div style={{ flex: 1, maxWidth: SEARCH_WIDTH }}>
+        <NotesSearchBox onSelect={onSelectNote} />
+      </div>
       <Menu position="bottom-end" withArrow>
         <Menu.Target>
           <UnstyledButton>
