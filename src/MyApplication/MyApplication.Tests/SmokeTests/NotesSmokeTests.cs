@@ -70,10 +70,14 @@ public class NotesSmokeTests : SmokeTestBase
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
+        // Кроме созданной заметки в списке есть приветственная: её заводит вход нового
+        // пользователя (см. AuthSmokeTests.Google_WelcomeNote_BlueSky). Список идёт
+        // от новых к старым, поэтому созданная — первая.
         var notes = await response.Content.ReadFromJsonAsync<List<NoteSummaryResponse>>();
         Assert.NotNull(notes);
-        Assert.Single(notes!);
-        Assert.Equal("Заголовок", notes![0].Title);
+        Assert.Equal(2, notes!.Count);
+        Assert.Equal("Заголовок", notes[0].Title);
+        Assert.Equal("Добро пожаловать", notes[1].Title);
     }
 
     [Fact]

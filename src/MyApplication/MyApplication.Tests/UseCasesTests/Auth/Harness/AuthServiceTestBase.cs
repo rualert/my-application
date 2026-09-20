@@ -1,7 +1,11 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using MyApplication.Application.Auth;
+using MyApplication.Application.Notes;
 using MyApplication.Infrastructure.Auth;
+using MyApplication.Infrastructure.Notes;
 
 namespace MyApplication.Tests.UseCasesTests.Auth.Harness;
 
@@ -11,11 +15,16 @@ namespace MyApplication.Tests.UseCasesTests.Auth.Harness;
 ///     <see cref="RefreshTokenRepository"/>, <see cref="AuthDbContext"/> (EF Core
 ///     InMemory) и настоящего <see cref="JwtTokenGenerator"/> — подменяется
 ///     только <see cref="IGoogleIdTokenValidator"/> (см. <see cref="FakeGoogleIdTokenValidator"/>),
-///     единственная легитимная внешняя граница.
+///     единственная легитимная внешняя граница. Реакция на регистрацию —
+///     настоящий <see cref="WelcomeNoteRegistrationHandler"/> поверх настоящих
+///     <see cref="NoteService"/>/<see cref="NoteRepository"/>/<see cref="NotesDbContext"/>
+///     (тоже InMemory), а не заглушка: иначе тесты не заметили бы, что приветственная
+///     заметка на самом деле не создаётся.
 /// </summary>
 public abstract class AuthServiceTestBase : IDisposable
 {
     private readonly AuthDbContext _context;
+    private readonly NotesDbContext _notesContext;
 
     protected AuthServiceTestBase()
     {
@@ -24,6 +33,13 @@ public abstract class AuthServiceTestBase : IDisposable
             .Options;
 
         _context = new AuthDbContext(options);
+
+        var notesOptions = new DbContextOptionsBuilder<NotesDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        _notesContext = new NotesDbContext(notesOptions);
+        Notes = new NoteService(new NoteRepository(_notesContext));
 
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -40,7 +56,8 @@ public abstract class AuthServiceTestBase : IDisposable
             new UserRepository(_context),
             new RefreshTokenRepository(_context),
             GoogleValidator,
-            new JwtTokenGenerator(configuration));
+            new JwtTokenGenerator(configuration),
+            new WelcomeNoteRegistrationHandler(Notes));
     }
 
     /// <summary>
@@ -56,10 +73,29 @@ public abstract class AuthServiceTestBase : IDisposable
     protected FakeGoogleIdTokenValidator GoogleValidator { get; }
 
     /// <summary>
-    ///     Освобождает контекст EF Core вместе с его in-memory базой данных теста.
+    ///     Сервис заметок поверх той же базы заметок, куда пишет реакция на
+    ///     регистрацию, — через него тесты смотрят, что регистрация оставила.
+    /// </summary>
+    protected INoteService Notes { get; }
+
+    /// <summary>
+    ///     Достаёт идентификатор пользователя из выданного access token'а (claim
+    ///     <see cref="ClaimTypes.NameIdentifier"/> — тот же, из которого его берёт
+    ///     <c>NotesController</c>): единственный публичный способ узнать, кому
+    ///     принадлежат его заметки.
+    /// </summary>
+    protected static Guid UserIdOf(AuthResult result)
+    {
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(result.AccessToken);
+        return Guid.Parse(token.Claims.Single(claim => claim.Type == ClaimTypes.NameIdentifier).Value);
+    }
+
+    /// <summary>
+    ///     Освобождает контексты EF Core вместе с их in-memory базами данных теста.
     /// </summary>
     public void Dispose()
     {
         _context.Dispose();
+        _notesContext.Dispose();
     }
 }
