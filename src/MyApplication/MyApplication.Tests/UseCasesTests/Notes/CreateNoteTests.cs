@@ -37,15 +37,19 @@ public class CreateNoteTests : NoteServiceTestBase
     }
 
     [Theory]
+    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task CreateAsync_WithEmptyOrWhitespaceTitle_ThrowsNoteValidationException(string title)
+    public async Task CreateAsync_WithMissingEmptyOrWhitespaceTitle_StoresNullTitle(string? title)
     {
         // Arrange
         // Act
+        var created = await Sut.CreateAsync(CallerUserId, title, "Текст", CancellationToken.None);
+
         // Assert
-        await Assert.ThrowsAsync<NoteValidationException>(
-            () => Sut.CreateAsync(CallerUserId, title, "Текст", CancellationToken.None));
+        Assert.Null(created.Title);
+        var loaded = await Sut.GetByIdAsync(CallerUserId, created.Id, CancellationToken.None);
+        Assert.Null(loaded.Title);
     }
 
     [Fact]

@@ -24,7 +24,8 @@ public class NotesDbContext : DbContext
             // без FK: Notes и Auth — разные bounded context'ы/DbContext'ы.
             builder.Property(note => note.UserId).IsRequired();
             builder.HasIndex(note => note.UserId);
-            builder.Property(note => note.Title).HasMaxLength(Note.MaxTitleLength).IsRequired();
+            // Title необязателен: null — заметка без заголовка (см. Note.NormalizeTitle).
+            builder.Property(note => note.Title).HasMaxLength(Note.MaxTitleLength);
             builder.Property(note => note.Text).IsRequired();
             builder.Property(note => note.CreatedAt).IsRequired();
             builder.Property(note => note.UpdatedAt).IsRequired();

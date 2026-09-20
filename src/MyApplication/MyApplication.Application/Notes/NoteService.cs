@@ -20,7 +20,7 @@ public class NoteService : INoteService
     /// <returns>Созданная заметка.</returns>
     /// <exception cref="ArgumentNullException">Текст заметки равен <c>null</c>.</exception>
     /// <exception cref="NoteValidationException">Заголовок или текст не проходят валидацию.</exception>
-    public async Task<NoteDetails> CreateAsync(Guid callerUserId, string title, string text, CancellationToken cancellationToken)
+    public async Task<NoteDetails> CreateAsync(Guid callerUserId, string? title, string text, CancellationToken cancellationToken)
     {
         var note = Note.Create(callerUserId, title, text);
         await _repository.AddAsync(note, cancellationToken);
@@ -72,7 +72,7 @@ public class NoteService : INoteService
     /// <exception cref="NoteAccessDeniedException">Заметка принадлежит другому пользователю.</exception>
     /// <exception cref="ArgumentNullException">Текст заметки равен <c>null</c>.</exception>
     /// <exception cref="NoteValidationException">Заголовок или текст не проходят валидацию.</exception>
-    public async Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string title, string text, CancellationToken cancellationToken)
+    public async Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string? title, string text, CancellationToken cancellationToken)
     {
         var note = await GetOwnedNoteAsync(callerUserId, id, cancellationToken);
         note.Update(title, text);

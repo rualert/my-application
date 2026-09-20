@@ -64,16 +64,22 @@ public class UpdateNoteTests : NoteServiceTestBase
             () => Sut.UpdateAsync(CallerUserId, created.Id, "Новый заголовок", "Новый текст", CancellationToken.None));
     }
 
-    [Fact]
-    public async Task UpdateAsync_WithEmptyTitle_ThrowsNoteValidationException()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task UpdateAsync_WithMissingEmptyOrWhitespaceTitle_ClearsTitleToNull(string? title)
     {
         // Arrange
         var created = await Sut.CreateAsync(CallerUserId, "Заголовок", "Текст", CancellationToken.None);
 
         // Act
+        var updated = await Sut.UpdateAsync(CallerUserId, created.Id, title, "Текст", CancellationToken.None);
+
         // Assert
-        await Assert.ThrowsAsync<NoteValidationException>(
-            () => Sut.UpdateAsync(CallerUserId, created.Id, string.Empty, "Текст", CancellationToken.None));
+        Assert.Null(updated.Title);
+        var loaded = await Sut.GetByIdAsync(CallerUserId, created.Id, CancellationToken.None);
+        Assert.Null(loaded.Title);
     }
 
     [Fact]

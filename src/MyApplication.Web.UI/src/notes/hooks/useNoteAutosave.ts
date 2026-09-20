@@ -1,7 +1,7 @@
 import { useDebouncedCallback } from "@mantine/hooks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteDetails } from "../../api/types";
-import { UNTITLED_TITLE } from "../domain";
+import { titleForRequest } from "../domain";
 import type { SaveStatus } from "../saveStatusText";
 import { useUpdateNote } from "./useUpdateNote";
 
@@ -36,8 +36,9 @@ export function useNoteAutosave(note: NoteDetails | undefined): NoteAutosave {
     if (!note) {
       return;
     }
-    draftRef.current = { title: note.title, text: note.text };
-    setTitleState(note.title);
+    const noteTitle = note.title ?? "";
+    draftRef.current = { title: noteTitle, text: note.text };
+    setTitleState(noteTitle);
     setTextState(note.text);
     setLastSavedAt(new Date(note.updatedAt));
     setStatus("idle");
@@ -49,11 +50,10 @@ export function useNoteAutosave(note: NoteDetails | undefined): NoteAutosave {
       return;
     }
     const { title: draftTitle, text: draftText } = draftRef.current;
-    const effectiveTitle = draftTitle.trim() === "" ? UNTITLED_TITLE : draftTitle;
 
     setStatus("saving");
     updateMutation.mutate(
-      { id: note.id, request: { title: effectiveTitle, text: draftText } },
+      { id: note.id, request: { title: titleForRequest(draftTitle), text: draftText } },
       {
         onSuccess: (updated) => {
           setStatus("idle");

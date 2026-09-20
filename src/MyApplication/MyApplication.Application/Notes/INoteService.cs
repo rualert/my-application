@@ -8,8 +8,10 @@ public interface INoteService
 {
     /// <summary>
     ///     Создаёт новую заметку от имени <paramref name="callerUserId"/>.
+    ///     Пустой <paramref name="title"/> (<c>null</c>, пустая строка, одни пробелы) означает
+    ///     «без заголовка» — у созданной заметки <c>Title</c> будет <c>null</c>.
     /// </summary>
-    Task<NoteDetails> CreateAsync(Guid callerUserId, string title, string text, CancellationToken cancellationToken);
+    Task<NoteDetails> CreateAsync(Guid callerUserId, string? title, string text, CancellationToken cancellationToken);
 
     /// <summary>
     ///     Возвращает страницу заметок пользователя <paramref name="callerUserId"/>
@@ -30,11 +32,13 @@ public interface INoteService
     Task<NoteDetails> GetByIdAsync(Guid callerUserId, Guid id, CancellationToken cancellationToken);
 
     /// <summary>
-    ///     Обновляет заголовок и текст существующей заметки.
+    ///     Обновляет заголовок и текст существующей заметки. Пустой <paramref name="title"/>
+    ///     (<c>null</c>, пустая строка, одни пробелы) означает «без заголовка» — <c>Title</c>
+    ///     заметки станет <c>null</c>.
     /// </summary>
     /// <exception cref="NoteNotFoundException">Заметка с таким идентификатором не найдена.</exception>
     /// <exception cref="NoteAccessDeniedException">Заметка принадлежит другому пользователю.</exception>
-    Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string title, string text, CancellationToken cancellationToken);
+    Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string? title, string text, CancellationToken cancellationToken);
 
     /// <summary>
     ///     Удаляет заметку по идентификатору.

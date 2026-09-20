@@ -2,7 +2,7 @@ import { ActionIcon, Group, Loader, Stack, Text, Textarea, TextInput, Title, Too
 import { Eye, Pencil } from "lucide-react";
 import { useRef, useState, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
-import { displayTitle, UNTITLED_TITLE } from "../domain";
+import { isUntitled, UNTITLED_TITLE } from "../domain";
 import { useNote } from "../hooks/useNote";
 import { useNoteAutosave } from "../hooks/useNoteAutosave";
 import { useNow } from "../hooks/useNow";
@@ -19,6 +19,7 @@ export function NoteEditorPanel({ noteId }: NoteEditorPanelProps) {
   const autosave = useNoteAutosave(noteQuery.data);
   const [mode, setMode] = useState<"edit" | "view">("edit");
   const now = useNow(STATUS_TICK_MS);
+  const untitled = isUntitled(autosave.title);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -113,7 +114,9 @@ export function NoteEditorPanel({ noteId }: NoteEditorPanelProps) {
           </>
         ) : (
           <>
-            <Title order={2}>{displayTitle(autosave.title)}</Title>
+            <Title order={2} c={untitled ? "dimmed" : undefined}>
+              {untitled ? UNTITLED_TITLE : autosave.title}
+            </Title>
             <ReactMarkdown>{autosave.text}</ReactMarkdown>
           </>
         )}
