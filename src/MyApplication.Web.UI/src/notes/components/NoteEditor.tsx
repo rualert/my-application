@@ -1,0 +1,115 @@
+import { ActionIcon, Group, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
+import { Eye, Pencil } from "lucide-react";
+import { useRef, type KeyboardEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import type { NoteDetails } from "../../api/types";
+import { isUntitled, UNTITLED_TITLE } from "../domain";
+import { useNoteAutosave } from "../hooks/useNoteAutosave";
+import { useNow } from "../hooks/useNow";
+import { formatSaveStatusText } from "../saveStatusText";
+
+const STATUS_TICK_MS = 30_000;
+
+export type EditorMode = "edit" | "view";
+
+interface NoteEditorProps {
+  note: NoteDetails;
+  mode: EditorMode;
+  onModeChange: (mode: EditorMode) => void;
+}
+
+// Монтируется заново для каждой заметки (key={note.id} в NoteEditorPanel):
+// черновик и автосохранение живут ровно столько, сколько открыта эта заметка,
+// а при закрытии хук досохраняет несохранённое (см. useNoteAutosave).
+export function NoteEditor({ note, mode, onModeChange }: NoteEditorProps) {
+  const autosave = useNoteAutosave(note);
+  const now = useNow(STATUS_TICK_MS);
+  const untitled = isUntitled(autosave.title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Enter или стрелка вниз в заголовке — курсор в начало текста; стрелка вверх
+  // из начала текста — курсор в конец заголовка. Делает переход между полями
+  // плавным, как между строками одного документа.
+  const handleTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter" && event.key !== "ArrowDown") {
+      return;
+    }
+    event.preventDefault();
+    textareaRef.current?.focus();
+    textareaRef.current?.setSelectionRange(0, 0);
+  };
+
+  const handleTextKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = event.currentTarget;
+    if (event.key !== "ArrowUp" || textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) {
+      return;
+    }
+    event.preventDefault();
+    const titleInput = titleInputRef.current;
+    if (!titleInput) {
+      return;
+    }
+    titleInput.focus();
+    titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+  };
+
+  const statusText = formatSaveStatusText(autosave.status, autosave.lastSavedAt, now);
+
+  return (
+    <Stack h="100%" gap={0}>
+      <Group justify="flex-end" p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+        <Tooltip label={mode === "edit" ? "Просмотр" : "Редактирование"}>
+          <ActionIcon
+            aria-label={mode === "edit" ? "Просмотр" : "Редактирование"}
+            variant="subtle"
+            onClick={() => onModeChange(mode === "edit" ? "view" : "edit")}
+          >
+            {mode === "edit" ? <Eye size={18} /> : <Pencil size={18} />}
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+
+      <Stack style={{ flex: 1, overflow: "auto" }} p="md" gap="sm">
+        {mode === "edit" ? (
+          <>
+            <TextInput
+              ref={titleInputRef}
+              value={autosave.title}
+              onChange={(event) => autosave.setTitle(event.currentTarget.value)}
+              onKeyDown={handleTitleKeyDown}
+              onBlur={autosave.flush}
+              placeholder={UNTITLED_TITLE}
+              variant="unstyled"
+              styles={{ input: { fontWeight: 700, fontSize: "1.5rem" } }}
+            />
+            <Textarea
+              ref={textareaRef}
+              value={autosave.text}
+              onChange={(event) => autosave.setText(event.currentTarget.value)}
+              onKeyDown={handleTextKeyDown}
+              onBlur={autosave.flush}
+              variant="unstyled"
+              autosize
+              minRows={12}
+              styles={{ root: { flex: 1 } }}
+            />
+          </>
+        ) : (
+          <>
+            <Title order={2} c={untitled ? "dimmed" : undefined}>
+              {untitled ? UNTITLED_TITLE : autosave.title}
+            </Title>
+            <ReactMarkdown>{autosave.text}</ReactMarkdown>
+          </>
+        )}
+      </Stack>
+
+      <Group justify="flex-end" p="xs" style={{ borderTop: "1px solid var(--mantine-color-gray-3)" }}>
+        <Text size="sm" c={autosave.error ? "red" : "dimmed"}>
+          {autosave.error ? `Ошибка сохранения: ${autosave.error}` : statusText}
+        </Text>
+      </Group>
+    </Stack>
+  );
+}
