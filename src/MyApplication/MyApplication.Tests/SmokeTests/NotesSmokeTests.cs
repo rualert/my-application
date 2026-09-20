@@ -38,6 +38,25 @@ public class NotesSmokeTests : SmokeTestBase
     }
 
     [Fact]
+    public async Task Create_WithoutTitle_BlueSky()
+    {
+        // Arrange
+        var accessToken = await LoginAsync();
+
+        // Act
+        var response = await Sut.SendAsync(AuthorizedRequest(
+            HttpMethod.Post, "/Notes", accessToken, JsonContent.Create(new { text = "Текст заметки" })));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var note = await response.Content.ReadFromJsonAsync<NoteResponse>();
+        Assert.NotNull(note);
+        Assert.Null(note!.Title);
+        Assert.Equal("Текст заметки", note.Text);
+    }
+
+    [Fact]
     public async Task GetAll_BlueSky()
     {
         // Arrange

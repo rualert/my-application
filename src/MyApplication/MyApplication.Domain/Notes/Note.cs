@@ -12,12 +12,15 @@ public class Note
 
     public Guid Id { get; }
     public Guid UserId { get; }
-    public string Title { get; private set; }
+    /// <summary>
+    ///     Заголовок заметки; <c>null</c>, если заголовок не задан.
+    /// </summary>
+    public string? Title { get; private set; }
     public string Text { get; private set; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    private Note(Guid id, Guid userId, string title, string text, DateTimeOffset createdAt, DateTimeOffset updatedAt)
+    private Note(Guid id, Guid userId, string? title, string text, DateTimeOffset createdAt, DateTimeOffset updatedAt)
     {
         Id = id;
         UserId = userId;
@@ -29,51 +32,57 @@ public class Note
 
     /// <summary>
     ///     Создаёт новую заметку с указанными владельцем, заголовком и текстом.
+    ///     Пустой заголовок (<c>null</c>, пустая строка или одни пробелы) означает «без заголовка»
+    ///     и хранится как <c>null</c>.
     /// </summary>
     /// <returns>Новая заметка с сгенерированным идентификатором.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text"/> равен <c>null</c>.</exception>
     /// <exception cref="NoteValidationException">
-    ///     Заголовок пуст или длиннее <see cref="MaxTitleLength"/> символов,
+    ///     Заголовок длиннее <see cref="MaxTitleLength"/> символов,
     ///     либо текст (в UTF-8) занимает больше <see cref="MaxTextBytes"/> байт.
     /// </exception>
-    public static Note Create(Guid userId, string title, string text)
+    public static Note Create(Guid userId, string? title, string text)
     {
-        ValidateTitle(title);
+        var normalizedTitle = NormalizeTitle(title);
         ValidateText(text);
 
         var now = DateTimeOffset.UtcNow;
-        return new Note(Guid.NewGuid(), userId, title, text, now, now);
+        return new Note(Guid.NewGuid(), userId, normalizedTitle, text, now, now);
     }
 
     /// <summary>
     ///     Обновляет заголовок и текст заметки, проставляя новую дату изменения.
+    ///     Пустой заголовок (<c>null</c>, пустая строка или одни пробелы) означает «без заголовка»
+    ///     и хранится как <c>null</c>.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="text"/> равен <c>null</c>.</exception>
     /// <exception cref="NoteValidationException">
-    ///     Заголовок пуст или длиннее <see cref="MaxTitleLength"/> символов,
+    ///     Заголовок длиннее <see cref="MaxTitleLength"/> символов,
     ///     либо текст (в UTF-8) занимает больше <see cref="MaxTextBytes"/> байт.
     /// </exception>
-    public void Update(string title, string text)
+    public void Update(string? title, string text)
     {
-        ValidateTitle(title);
+        var normalizedTitle = NormalizeTitle(title);
         ValidateText(text);
 
-        Title = title;
+        Title = normalizedTitle;
         Text = text;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    private static void ValidateTitle(string title)
+    private static string? NormalizeTitle(string? title)
     {
         if (string.IsNullOrWhiteSpace(title))
         {
-            throw new NoteValidationException("Заголовок заметки не может быть пустым.");
+            return null;
         }
 
         if (title.Length > MaxTitleLength)
         {
             throw new NoteValidationException($"Заголовок заметки не может быть длиннее {MaxTitleLength} символов.");
         }
+
+        return title;
     }
 
     private static void ValidateText(string text)

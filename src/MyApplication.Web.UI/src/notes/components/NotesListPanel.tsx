@@ -1,7 +1,7 @@
 import { ActionIcon, Group, Loader, NavLink, ScrollArea, Stack, Text, Tooltip } from "@mantine/core";
 import { PanelLeftClose, PanelLeftOpen, Plus, RotateCw, Trash2 } from "lucide-react";
 import { useRef } from "react";
-import { displayTitle, UNTITLED_TITLE } from "../domain";
+import { isUntitled, UNTITLED_TITLE } from "../domain";
 import { useCreateNote } from "../hooks/useCreateNote";
 import { useDeleteNote } from "../hooks/useDeleteNote";
 import { useNotesList } from "../hooks/useNotesList";
@@ -34,7 +34,7 @@ export function NotesListPanel({ collapsed, onToggleCollapse, selectedNoteId, on
 
   const handleCreate = () => {
     createMutation.mutate(
-      { title: UNTITLED_TITLE, text: "" },
+      { title: null, text: "" },
       { onSuccess: (created) => onSelect(created.id) },
     );
   };
@@ -124,7 +124,15 @@ export function NotesListPanel({ collapsed, onToggleCollapse, selectedNoteId, on
             {notes.map((note) => (
               <NavLink
                 key={note.id}
-                label={displayTitle(note.title)}
+                label={
+                  isUntitled(note.title) ? (
+                    <Text span inherit c="dimmed">
+                      {UNTITLED_TITLE}
+                    </Text>
+                  ) : (
+                    note.title
+                  )
+                }
                 active={note.id === selectedNoteId}
                 onClick={() => onSelect(note.id)}
               />
