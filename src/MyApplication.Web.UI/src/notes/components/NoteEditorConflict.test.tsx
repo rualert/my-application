@@ -34,6 +34,19 @@ describe("Conflict with an edit made elsewhere", () => {
   const reloadButton = () => screen.getByRole("button", { name: "Загрузить актуальную" });
   const overwriteButton = () => screen.getByRole("button", { name: "Перезаписать моей" });
 
+  // Предупреждение должно оставаться на экране, пока пользователь листает длинную
+  // заметку. Раскладки в jsdom нет, прокрутить нечего, поэтому проверяем причину:
+  // предупреждение не лежит внутри прокручиваемой области.
+  const scrollableAncestorOf = (element: HTMLElement) => {
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      const { overflow } = getComputedStyle(parent);
+      if (overflow === "auto" || overflow === "scroll") {
+        return parent;
+      }
+    }
+    return null;
+  };
+
   // Открывает заметку, правит её "из другой вкладки" и печатает свой вариант,
   // доводя редактор до отклонённого сохранения.
   async function openConflictedNote() {
@@ -67,6 +80,17 @@ describe("Conflict with an edit made elsewhere", () => {
 
     // Assert
     expect(textArea()).toHaveValue("моя правка");
+  });
+
+  it("keeps the warning out of the scrolled part of the note", async () => {
+    // Arrange
+    await openConflictedNote();
+
+    // Act
+    const warning = screen.getByRole("alert");
+
+    // Assert
+    expect(scrollableAncestorOf(warning)).toBeNull();
   });
 
   it("stops autosaving while the conflict is unresolved", async () => {
