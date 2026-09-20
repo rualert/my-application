@@ -14,6 +14,10 @@ title: Обзор сценария
 Заметки **приватны**: каждая принадлежит создавшему её пользователю (см.
 [«Авторизация»](/auth/overview)) — доступ к чужой заметке даёт `403`.
 
+Каждому новому пользователю при первом входе заводится одна приветственная
+заметка «Добро пожаловать» (см. [правила Auth](/auth/business-rules)): обычная
+заметка, которую можно изменить или удалить.
+
 ## Где реализовано
 
 | Слой | Компонент | Ответственность |
@@ -25,6 +29,7 @@ title: Обзор сценария
 | Application | `SearchSnippetBuilder` | Фрагмент текста вокруг совпадения и разметка найденных мест (в том числе неточных) |
 | Application | `NoteNotFoundException` | Заметка с указанным id не найдена |
 | Application | `NoteAccessDeniedException` | Заметка существует, но принадлежит другому пользователю |
+| Application | `WelcomeNote`, `WelcomeNoteRegistrationHandler` | Содержимое приветственной заметки и её создание новому пользователю (реализует порт `IUserRegistrationHandler` из Auth) |
 | Infrastructure | `NotesDbContext`, `NoteRepository` | Реализация хранения и поиска через EF Core + PostgreSQL (поиск с опечатками — на триграммах, расширение `pg_trgm`) |
 | Api (Presentation) | `NotesController` | REST-эндпоинты, требуют вход (см. [«Авторизация»](/auth/overview)), см. [контракт API](./api-contract) |
 | Web (Presentation) | `MyApplication.Web.UI` | React-интерфейс, см. [интерфейс](./web-ui) |

@@ -19,7 +19,8 @@ title: Обзор сценария
    стандартная кнопка «Войти через аккаунт Google»).
 2. `POST /Auth/google` с этим токеном — сервер проверяет его подпись/audience
    у Google, находит пользователя по идентификатору его профиля Google
-   (`GoogleSubjectId`) либо создаёт нового, выдаёт пару токенов.
+   (`GoogleSubjectId`) либо создаёт нового — и заводит ему приветственную
+   заметку (см. [правила](./business-rules)) — выдаёт пару токенов.
 3. Access token возвращается в теле ответа и живёт недолго (по умолчанию
    15 минут, см. [правила](./business-rules)). Refresh token живёт в
    httpOnly cookie — клиентский JS его не видит.
@@ -40,6 +41,7 @@ title: Обзор сценария
 | Application | `IUserRepository`, `IRefreshTokenRepository` | Порты для хранения пользователей и refresh-токенов |
 | Application | `IGoogleIdTokenValidator` | Порт проверки Google ID token (единственная внешняя интеграция) |
 | Application | `IJwtTokenGenerator` | Порт выпуска собственных access token'ов |
+| Application | `IUserRegistrationHandler` | Порт реакции на регистрацию нового пользователя; реализует фича «Заметки» (`WelcomeNoteRegistrationHandler` — приветственная заметка) |
 | Application | `InvalidGoogleTokenException`, `InvalidRefreshTokenException` | Ошибки аутентификации (401, см. [контракт API](./api-contract)) |
 | Infrastructure | `AuthDbContext`, `UserRepository`, `RefreshTokenRepository` | Хранение через EF Core + PostgreSQL |
 | Infrastructure | `GoogleIdTokenValidator` | Проверка токена через `Google.Apis.Auth` |
