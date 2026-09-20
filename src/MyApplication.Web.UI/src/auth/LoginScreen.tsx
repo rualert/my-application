@@ -32,7 +32,8 @@ export function LoginScreen() {
     <div
       style={{
         position: "relative",
-        height: "100vh",
+        // 100dvh: на телефоне 100vh выше видимой части экрана на адресную строку.
+        height: "100dvh",
         width: "100vw",
         overflow: "hidden",
         display: "flex",

@@ -15,6 +15,9 @@ export function NotesWorkspace() {
         onCommit={selection.requestTextFocus}
         editorFocus={selection.editorFocus}
         onEditorFocusHandled={selection.handleEditorFocusHandled}
+        onDeleted={selection.selectAfterDelete}
+        mobilePane={selection.mobilePane}
+        onShowList={selection.showList}
       />
     </div>
   );

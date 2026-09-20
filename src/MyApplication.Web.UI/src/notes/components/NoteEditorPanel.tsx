@@ -1,5 +1,7 @@
-import { Loader, Stack, Text } from "@mantine/core";
+import { ActionIcon, Group, Loader, Stack, Text, Tooltip } from "@mantine/core";
+import { ArrowLeft, Eye, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { useHotkey } from "../hooks/useHotkey";
 import { useNote } from "../hooks/useNote";
 import type { EditorFocusTarget } from "../hooks/useNoteSelection";
@@ -13,6 +15,11 @@ interface NoteEditorPanelProps {
   onEditorFocusHandled?: () => void;
   // Esc: уйти из редактора обратно в список заметок.
   onLeaveToList?: () => void;
+  // Телефон: кнопка «Назад» к списку заметок.
+  onBack?: () => void;
+  // Телефон: кнопка удаления открытой заметки. Подтверждение спрашивает и удаляет
+  // не эта панель, а список — соседи удаляемой заметки известны только ему.
+  onRequestDelete?: () => void;
 }
 
 const noop = () => {};
@@ -22,7 +29,10 @@ export function NoteEditorPanel({
   editorFocus = null,
   onEditorFocusHandled = noop,
   onLeaveToList = noop,
+  onBack = noop,
+  onRequestDelete = noop,
 }: NoteEditorPanelProps) {
+  const isMobile = useIsMobile();
   const noteQuery = useNote(noteId);
   // Режим живёт здесь, а не в NoteEditor: тот перемонтируется на каждую заметку,
   // а выбранный режим (правка/просмотр) при переключении заметок сохраняется.
@@ -95,18 +105,60 @@ export function NoteEditorPanel({
         key={noteQuery.data.id}
         note={noteQuery.data}
         mode={mode}
-        onModeChange={changeMode}
         focusTarget={editorFocus ?? localFocus}
         onFocusHandled={handleFocusHandled}
       />
     );
   }
 
+  // Тулбар живёт здесь, а не в NoteEditor: на телефоне в нём кнопка «Назад», а она нужна
+  // и пока заметка грузится, и когда загрузить её не удалось, — то есть когда редактора
+  // нет. Пока заметка не выбрана, тулбара нет вовсе: на телефоне такой экран не
+  // показывается, а на ПК показывать пустую полоску незачем.
+  const toolbar = noteId !== null && (
+    <Group justify="space-between" wrap="nowrap" p="xs" style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}>
+      {isMobile ? (
+        <Tooltip label="Назад к списку">
+          <ActionIcon aria-label="Назад к списку" variant="subtle" size="lg" onClick={onBack}>
+            <ArrowLeft size={18} />
+          </ActionIcon>
+        </Tooltip>
+      ) : (
+        <div />
+      )}
+      <Group gap="xs" wrap="nowrap">
+        {isMobile && (
+          <Tooltip label="Удалить заметку">
+            <ActionIcon aria-label="Удалить заметку" variant="subtle" color="red" size="lg" onClick={onRequestDelete}>
+              <Trash2 size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+        <Tooltip label={mode === "edit" ? "Просмотр" : "Редактирование"}>
+          <ActionIcon
+            aria-label={mode === "edit" ? "Просмотр" : "Редактирование"}
+            variant="subtle"
+            size={isMobile ? "lg" : "md"}
+            onClick={() => changeMode(mode === "edit" ? "view" : "edit")}
+          >
+            {mode === "edit" ? <Eye size={18} /> : <Pencil size={18} />}
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    </Group>
+  );
+
   // tabIndex={-1}: мышью сюда не встают, но фокус можно поставить из кода — и тогда
   // Esc, нажатый в режиме просмотра, тоже доходит до этого обработчика.
   return (
-    <div ref={panelRef} tabIndex={-1} onKeyDown={handleKeyDown} style={{ height: "100%", outline: "none" }}>
-      {content}
+    <div
+      ref={panelRef}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      style={{ height: "100%", outline: "none", display: "flex", flexDirection: "column" }}
+    >
+      {toolbar}
+      <div style={{ flex: 1, minHeight: 0 }}>{content}</div>
     </div>
   );
 }

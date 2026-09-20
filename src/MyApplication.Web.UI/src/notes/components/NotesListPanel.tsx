@@ -1,6 +1,7 @@
 import { ActionIcon, Button, Group, Loader, Modal, NavLink, ScrollArea, Stack, Text, Tooltip } from "@mantine/core";
 import { PanelLeftClose, PanelLeftOpen, Plus, RotateCw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { isUntitled, UNTITLED_TITLE } from "../domain";
 import { useCreateNote } from "../hooks/useCreateNote";
 import { useDeleteNote } from "../hooks/useDeleteNote";
@@ -11,25 +12,39 @@ const SCROLL_LOAD_THRESHOLD_PX = 200;
 
 interface NotesListPanelProps {
   collapsed: boolean;
+  // Телефон: список скрыт, потому что на экране заметка. Панель при этом остаётся
+  // смонтированной (см. NotesApp), а окно подтверждения удаления — вне скрытой части:
+  // его открывают как раз с экрана заметки.
+  hidden?: boolean;
   onToggleCollapse: () => void;
   selectedNoteId: string | null;
   onSelect: (id: string | null) => void;
   onCreated: (id: string) => void;
   // Enter в списке: курсор — в текст открытой заметки (как фиксация выбора в поиске).
   onCommit: () => void;
+  // Заметка удалена: открыть соседнюю (на телефоне — ещё и вернуться к списку).
+  onDeleted: (neighbourNoteId: string | null) => void;
   // Счётчик просьб «верни фокус в список» (Esc из редактора): растёт на каждую просьбу.
   focusRequest: number;
+  // Счётчик просьб удалить открытую заметку — из тулбара редактора (кнопка есть только
+  // на телефоне). Окно подтверждения живёт здесь: соседи удаляемой заметки известны
+  // только списку.
+  deleteRequest: number;
 }
 
 export function NotesListPanel({
   collapsed,
+  hidden = false,
   onToggleCollapse,
   selectedNoteId,
   onSelect,
   onCreated,
   onCommit,
+  onDeleted,
   focusRequest,
+  deleteRequest,
 }: NotesListPanelProps) {
+  const isMobile = useIsMobile();
   const notesQuery = useNotesList();
   const createMutation = useCreateNote();
   const deleteMutation = useDeleteNote();
@@ -38,6 +53,10 @@ export function NotesListPanel({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Куда вернуть фокус, когда окно подтверждения закроется (см. closeConfirm).
   const [focusAfterConfirm, setFocusAfterConfirm] = useState<{ noteId: string | null } | null>(null);
+
+  // На телефоне по кнопкам и строкам списка попадают пальцем, а не курсором, — поэтому
+  // они крупнее (docs/docs/notes/web-ui.md, «Интерфейс для телефона»).
+  const iconSize = isMobile ? "lg" : "md";
 
   const notes = notesQuery.data?.pages.flatMap((page) => page) ?? [];
   const selectedIndex = notes.findIndex((note) => note.id === selectedNoteId);
@@ -71,6 +90,15 @@ export function NotesListPanel({
     focusNote(selectedNoteId);
   }, [focusRequest]);
 
+  // Кнопка удаления в тулбаре редактора (телефон): подтверждение спрашиваем здесь же,
+  // что и по Delete в списке. Зависимость только от счётчика — важна сама просьба.
+  useEffect(() => {
+    if (deleteRequest === 0) {
+      return;
+    }
+    setConfirmingDelete(true);
+  }, [deleteRequest]);
+
   // Фокус после окна подтверждения возвращаем сами (returnFocus={false} у Modal):
   // удалённой строки, на которую Mantine вернул бы его, больше нет, да и делает он
   // это с задержкой — и перебил бы наш.
@@ -96,7 +124,7 @@ export function NotesListPanel({
     const neighbour = notes[selectedIndex + 1] ?? notes[selectedIndex - 1] ?? null;
     deleteMutation.mutate(selectedNote.id, {
       onSuccess: () => {
-        onSelect(neighbour?.id ?? null);
+        onDeleted(neighbour?.id ?? null);
         closeConfirm(neighbour?.id ?? null);
       },
     });
@@ -175,14 +203,16 @@ export function NotesListPanel({
 
   if (collapsed) {
     return (
-      <Stack align="center" p="xs" h="100%">
-        <Tooltip label="Показать список заметок" position="right">
-          <ActionIcon aria-label="Показать список заметок" variant="subtle" onClick={onToggleCollapse}>
-            <PanelLeftOpen size={18} />
-          </ActionIcon>
-        </Tooltip>
+      <>
+        <Stack align="center" p="xs" h="100%">
+          <Tooltip label="Показать список заметок" position="right">
+            <ActionIcon aria-label="Показать список заметок" variant="subtle" onClick={onToggleCollapse}>
+              <PanelLeftOpen size={18} />
+            </ActionIcon>
+          </Tooltip>
+        </Stack>
         {confirmModal}
-      </Stack>
+      </>
     );
   }
 
@@ -191,95 +221,107 @@ export function NotesListPanel({
   const focusableNoteId = selectedNote?.id ?? notes[0]?.id ?? null;
 
   return (
-    <Stack h="100%" gap={0}>
-      <Group
-        gap="xs"
-        p="xs"
-        wrap="nowrap"
-        style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}
-      >
-        <Tooltip label="Свернуть список">
-          <ActionIcon aria-label="Свернуть список" variant="subtle" onClick={onToggleCollapse}>
-            <PanelLeftClose size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <div style={{ flex: 1 }} />
-        <Tooltip label="Обновить список">
-          <ActionIcon
-            aria-label="Обновить список"
-            variant="subtle"
-            loading={notesQuery.isRefetching}
-            onClick={() => notesQuery.refetch()}
-          >
-            <RotateCw size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Добавить заметку">
-          <ActionIcon
-            aria-label="Добавить заметку"
-            variant="subtle"
-            loading={createMutation.isPending}
-            onClick={handleCreate}
-          >
-            <Plus size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Удалить выбранную">
-          <ActionIcon
-            aria-label="Удалить выбранную"
-            variant="subtle"
-            color="red"
-            disabled={!selectedNoteId}
-            onClick={() => setConfirmingDelete(true)}
-          >
-            <Trash2 size={18} />
-          </ActionIcon>
-        </Tooltip>
-      </Group>
+    <>
+      <Stack h="100%" gap={0} style={{ display: hidden ? "none" : undefined }}>
+        <Group
+          gap="xs"
+          p="xs"
+          wrap="nowrap"
+          style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}
+        >
+          {/* На телефоне сворачивать список некуда: он и так уступает место заметке целиком. */}
+          {!isMobile && (
+            <Tooltip label="Свернуть список">
+              <ActionIcon aria-label="Свернуть список" variant="subtle" onClick={onToggleCollapse}>
+                <PanelLeftClose size={18} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+          <div style={{ flex: 1 }} />
+          <Tooltip label="Обновить список">
+            <ActionIcon
+              aria-label="Обновить список"
+              variant="subtle"
+              size={iconSize}
+              loading={notesQuery.isRefetching}
+              onClick={() => notesQuery.refetch()}
+            >
+              <RotateCw size={18} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Добавить заметку">
+            <ActionIcon
+              aria-label="Добавить заметку"
+              variant="subtle"
+              size={iconSize}
+              loading={createMutation.isPending}
+              onClick={handleCreate}
+            >
+              <Plus size={18} />
+            </ActionIcon>
+          </Tooltip>
+          {/* На телефоне удаляют из тулбара открытой заметки: списка в этот момент на
+              экране нет, а выбранная заметка там и так одна. */}
+          {!isMobile && (
+            <Tooltip label="Удалить выбранную">
+              <ActionIcon
+                aria-label="Удалить выбранную"
+                variant="subtle"
+                color="red"
+                disabled={!selectedNoteId}
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <Trash2 size={18} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
 
-      {notesQuery.isLoading ? (
-        <Stack align="center" justify="center" style={{ flex: 1 }}>
-          <Loader size="sm" />
-        </Stack>
-      ) : notesQuery.isError ? (
-        <Stack align="center" justify="center" p="md" style={{ flex: 1 }}>
-          <Text c="red" size="sm">
-            Не удалось загрузить список заметок
-          </Text>
-        </Stack>
-      ) : (
-        <ScrollArea style={{ flex: 1 }} viewportRef={viewportRef} onScrollPositionChange={handleScrollPositionChange}>
-          <Stack gap={0} ref={listRef} role="listbox" aria-label="Заметки" onKeyDown={handleListKeyDown}>
-            {notes.map((note) => (
-              <NavLink
-                key={note.id}
-                data-note-id={note.id}
-                role="option"
-                aria-selected={note.id === selectedNoteId}
-                tabIndex={note.id === focusableNoteId ? 0 : -1}
-                label={
-                  isUntitled(note.title) ? (
-                    <Text span inherit c="dimmed">
-                      {UNTITLED_TITLE}
-                    </Text>
-                  ) : (
-                    note.title
-                  )
-                }
-                active={note.id === selectedNoteId}
-                onClick={() => onSelect(note.id)}
-              />
-            ))}
-            {notesQuery.isFetchingNextPage && (
-              <Stack align="center" p="sm">
-                <Loader size="xs" />
-              </Stack>
-            )}
+        {notesQuery.isLoading ? (
+          <Stack align="center" justify="center" style={{ flex: 1 }}>
+            <Loader size="sm" />
           </Stack>
-        </ScrollArea>
-      )}
+        ) : notesQuery.isError ? (
+          <Stack align="center" justify="center" p="md" style={{ flex: 1 }}>
+            <Text c="red" size="sm">
+              Не удалось загрузить список заметок
+            </Text>
+          </Stack>
+        ) : (
+          <ScrollArea style={{ flex: 1 }} viewportRef={viewportRef} onScrollPositionChange={handleScrollPositionChange}>
+            <Stack gap={0} ref={listRef} role="listbox" aria-label="Заметки" onKeyDown={handleListKeyDown}>
+              {notes.map((note) => (
+                <NavLink
+                  key={note.id}
+                  data-note-id={note.id}
+                  role="option"
+                  aria-selected={note.id === selectedNoteId}
+                  tabIndex={note.id === focusableNoteId ? 0 : -1}
+                  label={
+                    isUntitled(note.title) ? (
+                      <Text span inherit c="dimmed">
+                        {UNTITLED_TITLE}
+                      </Text>
+                    ) : (
+                      note.title
+                    )
+                  }
+                  active={note.id === selectedNoteId}
+                  py={isMobile ? "sm" : undefined}
+                  onClick={() => onSelect(note.id)}
+                />
+              ))}
+              {notesQuery.isFetchingNextPage && (
+                <Stack align="center" p="sm">
+                  <Loader size="xs" />
+                </Stack>
+              )}
+            </Stack>
+          </ScrollArea>
+        )}
+      </Stack>
 
       {confirmModal}
-    </Stack>
+    </>
   );
 }

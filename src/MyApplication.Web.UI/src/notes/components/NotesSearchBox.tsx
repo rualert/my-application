@@ -2,6 +2,7 @@ import { CloseButton, Combobox, Group, Loader, ScrollArea, Stack, Text, TextInpu
 import { Check, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent } from "react";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { UNTITLED_TITLE } from "../domain";
 import { useDoubleShift } from "../hooks/useDoubleShift";
 import { MIN_SEARCH_QUERY_LENGTH, useNotesSearch } from "../hooks/useNotesSearch";
@@ -27,6 +28,7 @@ interface NotesSearchBoxProps {
  * открытой заметке — фиксирует выбор: поле очищается, курсор уходит в редактор.
  */
 export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchBoxProps) {
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState("");
   // Enter нажали, а выдача по набранному тексту ещё не пришла: ждём её, чтобы открыть
   // первую строку именно этой выдачи, а не прежней.
@@ -175,7 +177,12 @@ export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchB
       <Combobox.Target>
         <TextInput
           aria-label="Поиск по заметкам"
-          placeholder="Поиск по заметкам · двойной Shift"
+          // Про двойной Shift напоминаем только там, где есть клавиатура; на телефоне
+          // её может не быть вовсе, а место в подсказке — на счету.
+          placeholder={isMobile ? "Поиск по заметкам" : "Поиск по заметкам · двойной Shift"}
+          // Размер «md» — это ещё и шрифт 16px: мельче браузер на iOS увеличивает
+          // страницу, как только курсор встаёт в поле.
+          size={isMobile ? "md" : undefined}
           leftSection={<Search size={16} />}
           rightSection={
             showLoader || showClear ? (
