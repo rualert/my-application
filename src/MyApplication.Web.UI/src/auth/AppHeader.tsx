@@ -7,14 +7,17 @@ const APP_TITLE = "MyNotesApp";
 const SEARCH_WIDTH = 420;
 
 interface AppHeaderProps {
-  onSelectNote: (id: string) => void;
+  // Что делает поиск с выбранной заметкой — см. NotesSearchBox.
+  openNoteId: string | null;
+  onPreviewNote: (id: string) => void;
+  onCommitNote: () => void;
 }
 
 /**
  * Шапка приложения: название слева, поиск по заметкам по центру, имя
  * пользователя с выпадающим меню (кнопка «Выйти») справа.
  */
-export function AppHeader({ onSelectNote }: AppHeaderProps) {
+export function AppHeader({ openNoteId, onPreviewNote, onCommitNote }: AppHeaderProps) {
   const { userName, logout } = useAuth();
 
   return (
@@ -27,7 +30,7 @@ export function AppHeader({ onSelectNote }: AppHeaderProps) {
     >
       <Text fw={700}>{APP_TITLE}</Text>
       <div style={{ flex: 1, maxWidth: SEARCH_WIDTH }}>
-        <NotesSearchBox onSelect={onSelectNote} />
+        <NotesSearchBox openNoteId={openNoteId} onPreview={onPreviewNote} onCommit={onCommitNote} />
       </div>
       <Menu position="bottom-end" withArrow>
         <Menu.Target>

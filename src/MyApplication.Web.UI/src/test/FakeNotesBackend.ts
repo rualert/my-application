@@ -20,6 +20,8 @@ export class FakeNotesBackend {
   private updateCounter = 0;
   private searchResults: NoteSearchResult[] = [];
   private searchFailure: { status: number; message: string } | null = null;
+  private searchGate: Promise<void> | null = null;
+  private readGate: Promise<void> | null = null;
 
   addNote(note: Partial<NoteDetails> & { id: string }): NoteDetails {
     const created: NoteDetails = {
@@ -73,10 +75,36 @@ export class FakeNotesBackend {
     this.searchFailure = { status, message };
   }
 
+  // Ответы на поиск не уходят, пока не вызвана возвращённая функция; сам запрос
+  // при этом уже записан в searchQueries — то есть он "в полёте".
+  holdSearches(): () => void {
+    return this.hold((gate) => (this.searchGate = gate), () => (this.searchGate = null));
+  }
+
+  // То же для загрузки заметки (GET /Notes/:id): пока она "грузится", редактора нет.
+  holdReads(): () => void {
+    return this.hold((gate) => (this.readGate = gate), () => (this.readGate = null));
+  }
+
+  private hold(set: (gate: Promise<void>) => void, clear: () => void): () => void {
+    let release!: () => void;
+    set(
+      new Promise<void>((resolve) => {
+        release = () => {
+          clear();
+          resolve();
+        };
+      }),
+    );
+    return release;
+  }
+
   readonly handlers = [
     // Раньше /Notes/:id — иначе тот перехватил бы /Notes/search как заметку с id "search".
-    http.get("/Notes/search", ({ request }) => {
+    http.get("/Notes/search", async ({ request }) => {
       this.searchQueries.push(new URL(request.url).searchParams.get("query") ?? "");
+
+      await this.searchGate;
 
       if (this.searchFailure) {
         return new HttpResponse(this.searchFailure.message, { status: this.searchFailure.status });
@@ -85,7 +113,9 @@ export class FakeNotesBackend {
       return HttpResponse.json(this.searchResults);
     }),
 
-    http.get("/Notes/:id", ({ params }) => {
+    http.get("/Notes/:id", async ({ params }) => {
+      await this.readGate;
+
       const note = this.notes.get(params.id as string);
       return note ? HttpResponse.json(note) : new HttpResponse("Заметка не найдена", { status: 400 });
     }),

@@ -1,10 +1,10 @@
 import { Loader, MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
 import { AppHeader } from "./auth/AppHeader";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { LoginScreen } from "./auth/LoginScreen";
 import { NotesApp } from "./notes/components/NotesApp";
+import { useNoteSelection } from "./notes/hooks/useNoteSelection";
 
 import "@mantine/core/styles.css";
 
@@ -13,7 +13,7 @@ const queryClient = new QueryClient();
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
   // Выбранную заметку задаёт и список, и поиск в шапке — поэтому она живёт здесь.
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const selection = useNoteSelection();
 
   if (isLoading) {
     return (
@@ -29,9 +29,18 @@ function AuthGate() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw" }}>
-      <AppHeader onSelectNote={setSelectedNoteId} />
+      <AppHeader
+        openNoteId={selection.selectedNoteId}
+        onPreviewNote={selection.select}
+        onCommitNote={selection.requestEditorFocus}
+      />
       <div style={{ flex: 1, minHeight: 0 }}>
-        <NotesApp selectedNoteId={selectedNoteId} onSelect={setSelectedNoteId} />
+        <NotesApp
+          selectedNoteId={selection.selectedNoteId}
+          onSelect={selection.select}
+          editorFocusRequested={selection.editorFocusRequested}
+          onEditorFocusHandled={selection.handleEditorFocusHandled}
+        />
       </div>
     </div>
   );
