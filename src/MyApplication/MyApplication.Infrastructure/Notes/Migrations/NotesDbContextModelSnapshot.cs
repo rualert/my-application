@@ -17,6 +17,7 @@ namespace MyApplication.Infrastructure.Notes.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasDefaultSchema("notes")
                 .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -66,7 +67,7 @@ namespace MyApplication.Infrastructure.Notes.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("notes", (string)null);
+                    b.ToTable("notes", "notes");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,10 +1,18 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using MyApplication.Domain.Notes;
 
 namespace MyApplication.Infrastructure.Notes;
 
 public class NotesDbContext : DbContext
 {
+    /// <summary>
+    ///     Схема PostgreSQL, в которой живут таблицы этого контекста и его же
+    ///     таблица истории миграций. Значение зашито и в сыром SQL поиска
+    ///     (<see cref="NoteRepository.SearchAsync"/>) — при смене поправить и там.
+    /// </summary>
+    public const string SchemaName = "notes";
+
     /// <summary>
     ///     Создаёт контекст EF Core с переданными опциями подключения.
     /// </summary>
@@ -14,8 +22,23 @@ public class NotesDbContext : DbContext
 
     public DbSet<Note> Notes => Set<Note>();
 
+    /// <summary>
+    ///     Подключает контекст к PostgreSQL и кладёт таблицу истории миграций в
+    ///     <see cref="SchemaName"/>. Единственное место, где это настраивается:
+    ///     оба места создания контекста (приложение и тесты) идут через него, иначе
+    ///     история оказалась бы не там, где её ищет <c>MigrateAsync()</c>.
+    /// </summary>
+    public static void ConfigureNpgsql(DbContextOptionsBuilder options, string? connectionString)
+    {
+        options.UseNpgsql(
+            connectionString,
+            npgsql => npgsql.MigrationsHistoryTable(HistoryRepository.DefaultTableName, SchemaName));
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(SchemaName);
+
         // pg_trgm — сравнение строк по триграммам: на нём держится поиск с
         // опечатками (см. NoteRepository.SearchAsync).
         modelBuilder.HasPostgresExtension("pg_trgm");

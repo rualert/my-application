@@ -45,12 +45,12 @@ builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 builder.Services.AddDbContext<NotesDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Notes")));
+    NotesDbContext.ConfigureNpgsql(options, builder.Configuration.GetConnectionString("Notes")));
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
 builder.Services.AddScoped<INoteService, NoteService>();
 
 builder.Services.AddDbContext<AuthDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Users")));
+    AuthDbContext.ConfigureNpgsql(options, builder.Configuration.GetConnectionString("Users")));
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 // В изолированном нагрузочном стенде (ASPNETCORE_ENVIRONMENT=LoadTest, см.
