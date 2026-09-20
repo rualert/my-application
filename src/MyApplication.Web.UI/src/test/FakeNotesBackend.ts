@@ -21,12 +21,25 @@ export class FakeNotesBackend {
     const created: NoteDetails = {
       title: null,
       text: "",
+      version: 1,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
       ...note,
     };
     this.notes.set(created.id, created);
     return created;
+  }
+
+  // Правка «из другой вкладки»: меняет заметку мимо клиента и поднимает её
+  // версию, после чего сохранение клиента со старой версией получит 409.
+  editElsewhere(id: string, changes: Partial<Pick<NoteDetails, "title" | "text">>): NoteDetails {
+    const existing = this.notes.get(id);
+    if (!existing) {
+      throw new Error(`Заметка ${id} не заведена в FakeNotesBackend`);
+    }
+    const updated: NoteDetails = { ...existing, ...changes, version: existing.version + 1 };
+    this.notes.set(id, updated);
+    return updated;
   }
 
   // Ответы на PUT не уходят, пока не вызвана возвращённая функция. Сам запрос
@@ -67,11 +80,16 @@ export class FakeNotesBackend {
       if (!existing) {
         return new HttpResponse("Заметка не найдена", { status: 400 });
       }
+      // Та же проверка версии, что на сервере (docs/docs/notes/api-contract.md).
+      if (body.version !== existing.version) {
+        return new HttpResponse("Заметка была изменена", { status: 409 });
+      }
       this.updateCounter += 1;
       const updated: NoteDetails = {
         ...existing,
         title: body.title,
         text: body.text,
+        version: existing.version + 1,
         updatedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, this.updateCounter)).toISOString(),
       };
       this.notes.set(id, updated);

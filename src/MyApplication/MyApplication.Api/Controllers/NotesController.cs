@@ -82,15 +82,16 @@ public class NotesController : ControllerBase
     /// <summary>
     ///     Обновляет заголовок и текст заметки.
     /// </summary>
-    /// <returns>Обновлённая заметка с кодом 200, либо 400, если заметка не найдена или нарушены бизнес-правила, либо 403, если она принадлежит другому пользователю.</returns>
+    /// <returns>Обновлённая заметка с кодом 200, либо 400, если заметка не найдена или нарушены бизнес-правила, либо 403, если она принадлежит другому пользователю, либо 409, если заметку изменили с версии, указанной в запросе.</returns>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(NoteResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<NoteResponse>> Update(Guid id, UpdateNoteRequest request, CancellationToken cancellationToken)
     {
-        var note = await _noteService.UpdateAsync(CallerUserId, id, request.Title, request.Text, cancellationToken);
+        var note = await _noteService.UpdateAsync(CallerUserId, id, request.Title, request.Text, request.Version, cancellationToken);
         return Ok(ToResponse(note));
     }
 
@@ -110,7 +111,7 @@ public class NotesController : ControllerBase
     }
 
     private static NoteResponse ToResponse(NoteDetails note) =>
-        new(note.Id, note.Title, note.Text, note.CreatedAt, note.UpdatedAt);
+        new(note.Id, note.Title, note.Text, note.Version, note.CreatedAt, note.UpdatedAt);
 
     private static NoteSummaryResponse ToSummaryResponse(NoteSummary note) =>
         new(note.Id, note.Title, note.CreatedAt, note.UpdatedAt);

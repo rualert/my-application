@@ -109,7 +109,7 @@ public class NotesSmokeTests : SmokeTestBase
 
         // Act
         var response = await Sut.SendAsync(AuthorizedRequest(
-            HttpMethod.Put, $"/Notes/{created!.Id}", accessToken, JsonContent.Create(new UpdateNoteRequest("Новый заголовок", "Новый текст"))));
+            HttpMethod.Put, $"/Notes/{created!.Id}", accessToken, JsonContent.Create(new UpdateNoteRequest("Новый заголовок", "Новый текст", created.Version))));
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -119,6 +119,36 @@ public class NotesSmokeTests : SmokeTestBase
         Assert.Equal(created.Id, note!.Id);
         Assert.Equal("Новый заголовок", note.Title);
         Assert.Equal("Новый текст", note.Text);
+        Assert.Equal(created.Version + 1, note.Version);
+    }
+
+    /// <summary>
+    ///     Конфликт версий — единственное место, где виден его HTTP-код: сам
+    ///     сценарий (устаревшая версия отклоняется) покрыт в UseCasesTests,
+    ///     а маппинг в 409 живёт в DomainExceptionHandler и проверяем только
+    ///     через реальный запрос. По той же причине здесь есть 401/403.
+    /// </summary>
+    [Fact]
+    public async Task Update_WithStaleVersion_ReturnsConflict()
+    {
+        // Arrange
+        var accessToken = await LoginAsync();
+        var createResponse = await Sut.SendAsync(AuthorizedRequest(
+            HttpMethod.Post, "/Notes", accessToken, JsonContent.Create(new CreateNoteRequest("Заголовок", "Текст заметки"))));
+        var created = await createResponse.Content.ReadFromJsonAsync<NoteResponse>();
+        await Sut.SendAsync(AuthorizedRequest(
+            HttpMethod.Put, $"/Notes/{created!.Id}", accessToken, JsonContent.Create(new UpdateNoteRequest("Заголовок", "Правка из другой вкладки", created.Version))));
+
+        // Act
+        var response = await Sut.SendAsync(AuthorizedRequest(
+            HttpMethod.Put, $"/Notes/{created.Id}", accessToken, JsonContent.Create(new UpdateNoteRequest("Заголовок", "Своя правка", created.Version))));
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var getResponse = await Sut.SendAsync(AuthorizedRequest(HttpMethod.Get, $"/Notes/{created.Id}", accessToken));
+        var note = await getResponse.Content.ReadFromJsonAsync<NoteResponse>();
+        Assert.Equal("Правка из другой вкладки", note!.Text);
     }
 
     [Fact]

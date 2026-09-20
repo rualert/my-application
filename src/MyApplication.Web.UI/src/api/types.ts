@@ -12,6 +12,9 @@ export interface NoteDetails {
   id: string;
   title: string | null;
   text: string;
+  // Версия заметки: её нужно вернуть в UpdateNoteRequest, чтобы сервер понял,
+  // от какого состояния сделаны правки (см. docs/docs/notes/business-rules.md).
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,6 +27,7 @@ export interface CreateNoteRequest {
 export interface UpdateNoteRequest {
   title: string | null;
   text: string;
+  version: number;
 }
 
 export interface AuthResponse {

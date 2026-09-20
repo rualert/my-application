@@ -34,5 +34,9 @@ public interface INoteRepository
     ///     Сохраняет все изменения, сделанные через <see cref="AddAsync"/>/<see cref="Remove"/>
     ///     или мутацию заметки, полученной через <see cref="GetByIdAsync"/>.
     /// </summary>
+    /// <exception cref="NoteConflictException">
+    ///     Заметку изменили между её чтением и сохранением — версия в хранилище
+    ///     уже не та, что была прочитана.
+    /// </exception>
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

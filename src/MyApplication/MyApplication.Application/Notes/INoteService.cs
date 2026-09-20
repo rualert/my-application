@@ -35,10 +35,16 @@ public interface INoteService
     ///     Обновляет заголовок и текст существующей заметки. Пустой <paramref name="title"/>
     ///     (<c>null</c>, пустая строка, одни пробелы) означает «без заголовка» — <c>Title</c>
     ///     заметки станет <c>null</c>.
+    ///     <paramref name="expectedVersion"/> — версия заметки, от которой отталкивался
+    ///     вызывающий: она должна совпадать с текущей, иначе заметку изменили где-то ещё
+    ///     и обновление отклоняется, чтобы не затереть те правки.
     /// </summary>
     /// <exception cref="NoteNotFoundException">Заметка с таким идентификатором не найдена.</exception>
     /// <exception cref="NoteAccessDeniedException">Заметка принадлежит другому пользователю.</exception>
-    Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string? title, string text, CancellationToken cancellationToken);
+    /// <exception cref="NoteConflictException">
+    ///     Текущая версия заметки отличается от <paramref name="expectedVersion"/>.
+    /// </exception>
+    Task<NoteDetails> UpdateAsync(Guid callerUserId, Guid id, string? title, string text, int expectedVersion, CancellationToken cancellationToken);
 
     /// <summary>
     ///     Удаляет заметку по идентификатору.

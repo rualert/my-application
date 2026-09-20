@@ -60,7 +60,7 @@ describe("Autosave in the note editor", () => {
 
     // Assert
     expect(requestsBeforeDelay).toBe(0);
-    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "abc" } }]);
+    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "abc", version: 1 } }]);
   });
 
   it("does not move the timer when the user keeps typing", async () => {
@@ -76,7 +76,7 @@ describe("Autosave in the note editor", () => {
     await advance(2000);
 
     // Assert
-    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "ab" } }]);
+    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "ab", version: 1 } }]);
   });
 
   it("keeps saving about every 5 seconds during continuous typing", async () => {
@@ -108,7 +108,7 @@ describe("Autosave in the note editor", () => {
     await advance(0);
 
     // Assert
-    expect(backend.updates).toEqual([{ id: "a", request: { title: "Новый", text: "" } }]);
+    expect(backend.updates).toEqual([{ id: "a", request: { title: "Новый", text: "", version: 1 } }]);
   });
 
   it("saves immediately when focus moves from the text to the title", async () => {
@@ -123,7 +123,7 @@ describe("Autosave in the note editor", () => {
     await advance(0);
 
     // Assert
-    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "abc" } }]);
+    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "abc", version: 1 } }]);
   });
 
   it("sends no request when focus changes but nothing was edited", async () => {
@@ -169,7 +169,7 @@ describe("Autosave in the note editor", () => {
     await sut.open("b");
 
     // Assert
-    expect(backend.updates).toEqual([{ id: "a", request: { title: "Первая", text: "правка" } }]);
+    expect(backend.updates).toEqual([{ id: "a", request: { title: "Первая", text: "правка", version: 1 } }]);
   });
 
   it("does not save the new note after switching, when nothing was edited in it", async () => {
@@ -201,7 +201,7 @@ describe("Autosave in the note editor", () => {
     await advance(0);
 
     // Assert
-    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "abc" } }]);
+    expect(backend.updates).toEqual([{ id: "a", request: { title: "Заголовок", text: "abc", version: 1 } }]);
   });
 
   it("does not overwrite what the user typed while a save request is in flight", async () => {
@@ -275,7 +275,7 @@ describe("Autosave in the note editor", () => {
     await advance(AUTOSAVE_DELAY_MS);
 
     // Assert
-    expect(backend.updates).toEqual([{ id: "a", request: { title: null, text: "x" } }]);
+    expect(backend.updates).toEqual([{ id: "a", request: { title: null, text: "x", version: 1 } }]);
   });
 
   it("shows 'Сохраняется…' while the request is in flight and the save time after it", async () => {
