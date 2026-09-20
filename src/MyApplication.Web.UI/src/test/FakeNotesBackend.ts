@@ -15,6 +15,8 @@ export class FakeNotesBackend {
   readonly searchQueries: string[] = [];
   // Каждый POST /Notes, дошедший до сервера.
   readonly creations: CreateNoteRequest[] = [];
+  // Каждый DELETE /Notes/:id, дошедший до сервера.
+  readonly deletions: string[] = [];
 
   private readonly notes = new Map<string, NoteDetails>();
   private updateGate: Promise<void> | null = null;
@@ -166,6 +168,13 @@ export class FakeNotesBackend {
       };
       this.notes.set(id, updated);
       return HttpResponse.json(updated);
+    }),
+
+    http.delete("/Notes/:id", ({ params }) => {
+      const id = params.id as string;
+      this.deletions.push(id);
+      this.notes.delete(id);
+      return new HttpResponse(null, { status: 204 });
     }),
   ];
 }

@@ -574,5 +574,75 @@ describe("Notes search box", () => {
       expect(whileSearching).toEqual({ showsPreviousResults: false, showsProgress: true });
       expect(within(screen.getByRole("listbox")).getByText("молоко")).toBeInTheDocument();
     });
+
+    // Открывает заметку и ставит курсор в её текст — то место, из которого потом
+    // уходят в поиск.
+    async function openNoteAndPlaceCursor(position: number) {
+      const user = await search("пок");
+      await user.keyboard("{Enter}");
+      await advance(0);
+      await user.keyboard("{Enter}");
+      await advance(SEARCH_DEBOUNCE_MS);
+      noteTextArea()!.setSelectionRange(position, position);
+      return user;
+    }
+
+    it("leaves the search on Escape in an empty field, returning the cursor where it came from", async () => {
+      // Arrange
+      const user = await openNoteAndPlaceCursor(3);
+      await user.keyboard("{Shift}{Shift}");
+      expect(searchInput()).toHaveFocus();
+
+      // Act
+      await user.keyboard("{Escape}");
+      await advance(SEARCH_DEBOUNCE_MS);
+
+      // Assert
+      expect(noteTextArea()).toHaveFocus();
+      expect(noteTextArea()?.selectionStart).toBe(3);
+      expect(searchInput()).toHaveValue("");
+    });
+
+    it("takes two Escapes to leave when something is typed, even if nothing was found", async () => {
+      // Arrange
+      const user = await openNoteAndPlaceCursor(3);
+      await user.keyboard("{Shift}{Shift}");
+      backend.setSearchResults([]);
+      await user.type(searchInput(), "ктулху");
+      await settleSearch();
+      expect(screen.getByText("Ничего не найдено")).toBeInTheDocument();
+
+      // Act
+      await user.keyboard("{Escape}");
+      const afterFirstEscape = { value: searchInput().value, keepsFocus: searchInput() === document.activeElement };
+      await user.keyboard("{Escape}");
+      await advance(SEARCH_DEBOUNCE_MS);
+
+      // Assert
+      expect(afterFirstEscape).toEqual({ value: "", keepsFocus: true });
+      expect(noteTextArea()).toHaveFocus();
+      expect(noteTextArea()?.selectionStart).toBe(3);
+    });
+
+    it("puts the cursor into the open note when the place it came from is gone", async () => {
+      // Arrange: из заметки ушли в поиск, а там предпросмотром открыли другую —
+      // прежний редактор размонтирован, возвращаться в него некуда.
+      const user = await openNoteAndPlaceCursor(3);
+      await user.keyboard("{Shift}{Shift}");
+      await user.type(searchInput(), "пок");
+      await settleSearch();
+      await user.click(row("хлеб"));
+      await advance(0);
+      expect(screen.getByDisplayValue("Покупки 2")).toBeInTheDocument();
+
+      // Act
+      await user.keyboard("{Escape}");
+      await user.keyboard("{Escape}");
+      await advance(SEARCH_DEBOUNCE_MS);
+
+      // Assert
+      await expectCursorAtStartOfNoteText();
+      expect(noteTextArea()).toHaveValue("хлеб");
+    });
   });
 });

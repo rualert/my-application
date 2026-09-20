@@ -12,6 +12,7 @@ export function NotesWorkspace() {
         selectedNoteId={selection.selectedNoteId}
         onSelect={selection.select}
         onCreated={selection.selectCreated}
+        onCommit={selection.requestTextFocus}
         editorFocus={selection.editorFocus}
         onEditorFocusHandled={selection.handleEditorFocusHandled}
       />
