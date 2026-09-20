@@ -126,7 +126,23 @@ docker compose -f ci/docker-compose.app.yml up -d --build
 
 Веб-интерфейс будет доступен по адресу `http://localhost:80`. Внутри контейнера nginx отдаёт собранную статику и проксирует `/Notes` на `myapplication-api:8080` (см. `ci/nginx.conf.template`) — браузер обращается к единому origin, без CORS.
 
-## 5. Развёртывание в Railway (доступ из интернета)
+## 5. Сборка клиента для Android (MyApplication.Android)
+
+Нативный клиент на Kotlin + Jetpack Compose, работающий с тем же API. Ставится APK-файлом, в магазине не публикуется. Требования к поведению — в [документации](https://rualert.github.io/my-application/notes/android), подробности сборки — в `src/MyApplication.Android/README.md`.
+
+Нужны JDK 17 или новее (Gradle берёт его из `JAVA_HOME`) и Android SDK с платформой API 37 — проще всего поставить Android Studio и один раз пройти мастер первого запуска. Сам Gradle ставить не нужно, его скачает `gradlew`.
+
+```powershell
+cd src/MyApplication.Android
+.\gradlew.bat assembleDebug   # APK: app\build\outputs\apk\debug\app-debug.apk
+.\gradlew.bat installDebug    # собрать и поставить на подключённое устройство
+```
+
+Вход через Google требует идентификатора **веб-клиента** OAuth — того же, что и у веб-интерфейса. В git он не хранится: задайте `myNotesApp.googleServerClientId` в `local.properties` (файл игнорируется git) или ключом `-P`. Кроме того, в том же проекте Google Cloud должен быть заведён OAuth-клиент типа Android с идентификатором пакета `io.github.rualert.mynotesapp` и отпечатком SHA-1 ключа подписи — см. README проекта.
+
+Собирать локально необязательно: workflow `.github/workflows/android.yml` собирает APK на каждый push и pull request, затрагивающий `src/MyApplication.Android/**`, и кладёт его артефактом — файл можно скачать со страницы запуска в GitHub Actions.
+
+## 6. Развёртывание в Railway (доступ из интернета)
 
 Приложение развёрнуто на [Railway](https://railway.com/) — публичный адрес: **https://web-ui-production-5b19.up.railway.app**.
 

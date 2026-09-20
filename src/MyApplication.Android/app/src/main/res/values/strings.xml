@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyNotesApp</string>
+    <string name="login_title">MyNotesApp</string>
+    <string name="login_subtitle">Заметки, доступные с любого устройства</string>
+    <string name="login_button">Войти через аккаунт Google</string>
+    <string name="login_failed">Не удалось войти. Попробуйте ещё раз.</string>
+    <string name="login_cancelled">Вход отменён.</string>
+    <string name="login_client_id_missing">Не задан идентификатор клиента Google — см. README.</string>
+    <string name="session_unavailable">Сервер недоступен. Проверьте соединение.</string>
+    <string name="retry">Повторить</string>
+    <string name="logout">Выйти</string>
+    <string name="account_menu">Аккаунт</string>
+    <string name="notes_placeholder">Вход выполнен. Список заметок и редактор появятся на следующем шаге.</string>
+</resources>
