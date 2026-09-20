@@ -65,6 +65,26 @@ public class NotesController : ControllerBase
     }
 
     /// <summary>
+    ///     Ищет заметки по заголовку и тексту, от более релевантных к менее.
+    ///     Путь с <see cref="GetById"/> не конфликтует: там идентификатор —
+    ///     только GUID, и <c>search</c> под это ограничение не подходит.
+    /// </summary>
+    /// <param name="query">Что искать. Не короче 3 символов.</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>Найденные заметки с кодом 200 (не более 10), либо 400 при слишком коротком запросе.</returns>
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(IReadOnlyList<NoteSearchResultResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<IReadOnlyList<NoteSearchResultResponse>>> Search(
+        [FromQuery] string query = "",
+        CancellationToken cancellationToken = default)
+    {
+        var results = await _noteService.SearchAsync(CallerUserId, query, cancellationToken);
+        return Ok(results.Select(ToSearchResultResponse).ToArray());
+    }
+
+    /// <summary>
     ///     Возвращает заметку целиком по идентификатору.
     /// </summary>
     /// <returns>Заметка с кодом 200, либо 400, если она не найдена, либо 403, если она принадлежит другому пользователю.</returns>
@@ -115,4 +135,10 @@ public class NotesController : ControllerBase
 
     private static NoteSummaryResponse ToSummaryResponse(NoteSummary note) =>
         new(note.Id, note.Title, note.CreatedAt, note.UpdatedAt);
+
+    private static NoteSearchResultResponse ToSearchResultResponse(NoteSearchResult result) =>
+        new(result.Id, ToSegmentResponses(result.Title), ToSegmentResponses(result.Snippet));
+
+    private static IReadOnlyList<HighlightedSegmentResponse> ToSegmentResponses(IReadOnlyList<HighlightedSegment> segments) =>
+        segments.Select(segment => new HighlightedSegmentResponse(segment.Text, segment.Match)).ToArray();
 }

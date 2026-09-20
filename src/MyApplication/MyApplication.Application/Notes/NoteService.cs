@@ -4,6 +4,17 @@ namespace MyApplication.Application.Notes;
 
 public class NoteService : INoteService
 {
+    /// <summary>
+    ///     Минимальная длина поискового запроса: по более короткому искать нечего.
+    /// </summary>
+    public const int MinQueryLength = 3;
+
+    /// <summary>
+    ///     Сколько заметок возвращает поиск. Ровно столько, сколько показывает
+    ///     подсказка в поле поиска — постраничного просмотра совпадений нет.
+    /// </summary>
+    public const int MaxSearchResults = 10;
+
     private readonly INoteRepository _repository;
 
     /// <summary>
@@ -50,6 +61,29 @@ public class NoteService : INoteService
 
         var notes = await _repository.GetAllAsync(callerUserId, from, count, cancellationToken);
         return notes.Select(ToSummary).ToArray();
+    }
+
+    /// <summary>
+    ///     Ищет <paramref name="query"/> среди заметок пользователя
+    ///     <paramref name="callerUserId"/>.
+    /// </summary>
+    /// <returns>
+    ///     Не более <see cref="MaxSearchResults"/> найденных заметок, от более
+    ///     релевантных к менее.
+    /// </returns>
+    /// <exception cref="ApplicationException">
+    ///     <paramref name="query"/> короче <see cref="MinQueryLength"/> символов.
+    /// </exception>
+    public async Task<IReadOnlyList<NoteSearchResult>> SearchAsync(Guid callerUserId, string query, CancellationToken cancellationToken)
+    {
+        var trimmedQuery = query?.Trim() ?? string.Empty;
+        if (trimmedQuery.Length < MinQueryLength)
+        {
+            throw new ApplicationException($"Поисковый запрос должен быть не короче {MinQueryLength} символов.");
+        }
+
+        var notes = await _repository.SearchAsync(callerUserId, trimmedQuery, MaxSearchResults, cancellationToken);
+        return notes.Select(note => ToSearchResult(note, trimmedQuery)).ToArray();
     }
 
     /// <summary>
@@ -114,6 +148,11 @@ public class NoteService : INoteService
     }
 
     private static NoteSummary ToSummary(Note note) => new(note.Id, note.Title, note.CreatedAt, note.UpdatedAt);
+
+    private static NoteSearchResult ToSearchResult(Note note, string query) => new(
+        note.Id,
+        SearchSnippetBuilder.HighlightTitle(note.Title, query),
+        SearchSnippetBuilder.BuildSnippet(note.Text, query));
 
     private static NoteDetails ToDetails(Note note) => new(note.Id, note.Title, note.Text, note.Version, note.CreatedAt, note.UpdatedAt);
 }

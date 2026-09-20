@@ -25,6 +25,20 @@ public interface INoteService
     Task<IReadOnlyList<NoteSummary>> GetAllAsync(Guid callerUserId, int from, int count, CancellationToken cancellationToken);
 
     /// <summary>
+    ///     Ищет <paramref name="query"/> среди заметок пользователя
+    ///     <paramref name="callerUserId"/> — и в заголовках, и в текстах, без учёта
+    ///     регистра и с учётом опечаток. Возвращает не более
+    ///     <see cref="NoteService.MaxSearchResults"/> самых релевантных заметок
+    ///     (порядок выдачи — см. <see cref="INoteRepository.SearchAsync"/>), каждую —
+    ///     заголовком и фрагментом текста вокруг совпадения с отмеченными местами
+    ///     совпадений.
+    /// </summary>
+    /// <exception cref="ApplicationException">
+    ///     <paramref name="query"/> короче <see cref="NoteService.MinQueryLength"/> символов.
+    /// </exception>
+    Task<IReadOnlyList<NoteSearchResult>> SearchAsync(Guid callerUserId, string query, CancellationToken cancellationToken);
+
+    /// <summary>
     ///     Возвращает заметку целиком по идентификатору.
     /// </summary>
     /// <exception cref="NoteNotFoundException">Заметка с таким идентификатором не найдена.</exception>

@@ -1,5 +1,6 @@
 import { Loader, MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
 import { AppHeader } from "./auth/AppHeader";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { LoginScreen } from "./auth/LoginScreen";
@@ -11,6 +12,8 @@ const queryClient = new QueryClient();
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
+  // Выбранную заметку задаёт и список, и поиск в шапке — поэтому она живёт здесь.
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -26,9 +29,9 @@ function AuthGate() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", width: "100vw" }}>
-      <AppHeader />
+      <AppHeader onSelectNote={setSelectedNoteId} />
       <div style={{ flex: 1, minHeight: 0 }}>
-        <NotesApp />
+        <NotesApp selectedNoteId={selectedNoteId} onSelect={setSelectedNoteId} />
       </div>
     </div>
   );

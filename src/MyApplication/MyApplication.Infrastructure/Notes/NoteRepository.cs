@@ -50,6 +50,54 @@ public class NoteRepository : INoteRepository
     }
 
     /// <summary>
+    ///     Возвращает не более <paramref name="limit"/> заметок пользователя
+    ///     <paramref name="userId"/>, в которых нашёлся <paramref name="query"/>,
+    ///     от более релевантных к менее (правила отбора и порядка — см.
+    ///     <see cref="INoteRepository.SearchAsync"/>).
+    ///     Считается всё это в самой БД: отсортировать по релевантности и взять
+    ///     первые несколько иначе означало бы вычитать в память все заметки
+    ///     пользователя.
+    ///     Точное вхождение ищется через ILIKE, неточное — через оператор <c>&lt;%</c>
+    ///     расширения pg_trgm: он истинен, когда внутри строки находится достаточно
+    ///     похожий на запрос фрагмент. Веса подобраны так, чтобы точность совпадения
+    ///     была важнее поля, в котором оно нашлось: заметка с точным вхождением в
+    ///     тексте идёт выше заметки, у которой на запрос лишь похож заголовок.
+    /// </summary>
+    public async Task<IReadOnlyList<Note>> SearchAsync(Guid userId, string query, int limit, CancellationToken cancellationToken)
+    {
+        var pattern = $"%{EscapeLikePattern(query)}%";
+
+        return await _context.Notes
+            .FromSql($"""
+                      SELECT n.*
+                      FROM notes AS n
+                      WHERE n."UserId" = {userId}
+                        AND (n."Title" ILIKE {pattern}
+                          OR n."Text" ILIKE {pattern}
+                          OR {query} <% coalesce(n."Title", '')
+                          OR {query} <% n."Text")
+                      ORDER BY 4.0 * (CASE WHEN n."Title" ILIKE {pattern} THEN 1 ELSE 0 END)
+                             + 2.0 * (CASE WHEN n."Text" ILIKE {pattern} THEN 1 ELSE 0 END)
+                             + 1.5 * word_similarity({query}, coalesce(n."Title", ''))
+                             + 1.0 * word_similarity({query}, n."Text") DESC,
+                               n."UpdatedAt" DESC
+                      LIMIT {limit}
+                      """)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    ///     Экранирует символы, которые ILIKE считает подстановочными, чтобы запрос
+    ///     вроде <c>50%</c> искался буквально. Экранирующий символ в PostgreSQL по
+    ///     умолчанию — обратная косая черта.
+    /// </summary>
+    private static string EscapeLikePattern(string query) => query
+        .Replace("\\", "\\\\")
+        .Replace("%", "\\%")
+        .Replace("_", "\\_");
+
+    /// <summary>
     ///     Помечает заметку на удаление в контексте EF Core (без сохранения).
     /// </summary>
     public void Remove(Note note)
