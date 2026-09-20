@@ -9,9 +9,12 @@ interface NotesAppProps {
   // Выбранная заметка живёт выше: её выбирают и из списка, и из поиска в шапке.
   selectedNoteId: string | null;
   onSelect: (id: string | null) => void;
+  // Просьба поставить курсор в редактор (зафиксирован выбор в поиске) — см. NoteEditor.
+  editorFocusRequested: boolean;
+  onEditorFocusHandled: () => void;
 }
 
-export function NotesApp({ selectedNoteId, onSelect }: NotesAppProps) {
+export function NotesApp({ selectedNoteId, onSelect, editorFocusRequested, onEditorFocusHandled }: NotesAppProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -31,7 +34,11 @@ export function NotesApp({ selectedNoteId, onSelect }: NotesAppProps) {
         />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <NoteEditorPanel noteId={selectedNoteId} />
+        <NoteEditorPanel
+          noteId={selectedNoteId}
+          editorFocusRequested={editorFocusRequested}
+          onEditorFocusHandled={onEditorFocusHandled}
+        />
       </div>
     </div>
   );

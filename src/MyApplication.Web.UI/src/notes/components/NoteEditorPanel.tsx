@@ -5,9 +5,15 @@ import { NoteEditor, type EditorMode } from "./NoteEditor";
 
 interface NoteEditorPanelProps {
   noteId: string | null;
+  // Просьба поставить курсор в редактор — см. NoteEditor. Пока заметка грузится,
+  // флаг просто ждёт: редактора ещё нет, а исполнит его тот, что появится.
+  editorFocusRequested?: boolean;
+  onEditorFocusHandled?: () => void;
 }
 
-export function NoteEditorPanel({ noteId }: NoteEditorPanelProps) {
+const noop = () => {};
+
+export function NoteEditorPanel({ noteId, editorFocusRequested = false, onEditorFocusHandled = noop }: NoteEditorPanelProps) {
   const noteQuery = useNote(noteId);
   // Режим живёт здесь, а не в NoteEditor: тот перемонтируется на каждую заметку,
   // а выбранный режим (правка/просмотр) при переключении заметок сохраняется.
@@ -37,5 +43,14 @@ export function NoteEditorPanel({ noteId }: NoteEditorPanelProps) {
     );
   }
 
-  return <NoteEditor key={noteQuery.data.id} note={noteQuery.data} mode={mode} onModeChange={setMode} />;
+  return (
+    <NoteEditor
+      key={noteQuery.data.id}
+      note={noteQuery.data}
+      mode={mode}
+      onModeChange={setMode}
+      focusRequested={editorFocusRequested}
+      onFocusHandled={onEditorFocusHandled}
+    />
+  );
 }

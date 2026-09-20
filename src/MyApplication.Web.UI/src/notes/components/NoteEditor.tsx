@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Button, Group, Stack, Text, Textarea, TextInput, Title, Tooltip } from "@mantine/core";
 import { CloudDownload, CloudUpload, Eye, Pencil, TriangleAlert } from "lucide-react";
-import { useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import type { NoteDetails } from "../../api/types";
 import { isUntitled, UNTITLED_TITLE } from "../domain";
@@ -16,17 +16,36 @@ interface NoteEditorProps {
   note: NoteDetails;
   mode: EditorMode;
   onModeChange: (mode: EditorMode) => void;
+  // Просят поставить курсор в редактор (зафиксирован выбор в поиске). Флаг живёт
+  // выше, потому что просьба может прийти раньше, чем заметка загрузилась и этот
+  // редактор появился; исполнив её (или сочтя неисполнимой), редактор снимает флаг.
+  focusRequested: boolean;
+  onFocusHandled: () => void;
 }
 
 // Монтируется заново для каждой заметки (key={note.id} в NoteEditorPanel):
 // черновик и автосохранение живут ровно столько, сколько открыта эта заметка,
 // а при закрытии хук досохраняет несохранённое (см. useNoteAutosave).
-export function NoteEditor({ note, mode, onModeChange }: NoteEditorProps) {
+export function NoteEditor({ note, mode, onModeChange, focusRequested, onFocusHandled }: NoteEditorProps) {
   const autosave = useNoteAutosave(note);
   const now = useNow(STATUS_TICK_MS);
   const untitled = isUntitled(autosave.title);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Курсор — в начало текста (docs/docs/notes/web-ui.md, «Выбор результата»). В режиме
+  // просмотра полей нет, ставить курсор некуда — просьбу всё равно снимаем, чтобы она не
+  // «дожила» до момента, когда пользователь сам переключит режим.
+  useEffect(() => {
+    if (!focusRequested) {
+      return;
+    }
+    if (mode === "edit") {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(0, 0);
+    }
+    onFocusHandled();
+  }, [focusRequested, mode, onFocusHandled]);
 
   // Enter или стрелка вниз в заголовке — курсор в начало текста; стрелка вверх
   // из начала текста — курсор в конец заголовка. Делает переход между полями
