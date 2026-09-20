@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useHotkey } from "../hooks/useHotkey";
 import type { EditorFocusTarget } from "../hooks/useNoteSelection";
 import { NoteEditorPanel } from "./NoteEditorPanel";
 import { NotesListPanel } from "./NotesListPanel";
@@ -12,13 +13,33 @@ interface NotesAppProps {
   onSelect: (id: string | null) => void;
   // Открыть только что созданную заметку (курсор — в её заголовок).
   onCreated: (id: string) => void;
+  // Enter в списке: курсор — в текст открытой заметки.
+  onCommit: () => void;
   // Просьба поставить курсор в редактор — см. NoteEditor.
   editorFocus: EditorFocusTarget | null;
   onEditorFocusHandled: () => void;
 }
 
-export function NotesApp({ selectedNoteId, onSelect, onCreated, editorFocus, onEditorFocusHandled }: NotesAppProps) {
+export function NotesApp({
+  selectedNoteId,
+  onSelect,
+  onCreated,
+  onCommit,
+  editorFocus,
+  onEditorFocusHandled,
+}: NotesAppProps) {
   const [collapsed, setCollapsed] = useState(false);
+  // Просьба вернуть фокус в список (Esc из редактора). Счётчик, а не флаг: каждое
+  // нажатие — отдельная просьба, в том числе повторное.
+  const [listFocusRequest, setListFocusRequest] = useState(0);
+
+  useHotkey({ code: "Backslash", mod: true }, () => setCollapsed((value) => !value));
+
+  const handleLeaveEditor = () => {
+    // Свёрнутый список разворачиваем: иначе фокусу некуда встать.
+    setCollapsed(false);
+    setListFocusRequest((value) => value + 1);
+  };
 
   return (
     <div style={{ display: "flex", height: "100%", width: "100%" }}>
@@ -35,6 +56,8 @@ export function NotesApp({ selectedNoteId, onSelect, onCreated, editorFocus, onE
           selectedNoteId={selectedNoteId}
           onSelect={onSelect}
           onCreated={onCreated}
+          onCommit={onCommit}
+          focusRequest={listFocusRequest}
         />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -42,6 +65,7 @@ export function NotesApp({ selectedNoteId, onSelect, onCreated, editorFocus, onE
           noteId={selectedNoteId}
           editorFocus={editorFocus}
           onEditorFocusHandled={onEditorFocusHandled}
+          onLeaveToList={handleLeaveEditor}
         />
       </div>
     </div>

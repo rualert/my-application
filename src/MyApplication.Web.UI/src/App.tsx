@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppHeader } from "./auth/AppHeader";
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { LoginScreen } from "./auth/LoginScreen";
+import { HotkeysHelp } from "./notes/components/HotkeysHelp";
 import { NotesApp } from "./notes/components/NotesApp";
 import { useNoteSelection } from "./notes/hooks/useNoteSelection";
 
@@ -39,10 +40,12 @@ function AuthGate() {
           selectedNoteId={selection.selectedNoteId}
           onSelect={selection.select}
           onCreated={selection.selectCreated}
+          onCommit={selection.requestTextFocus}
           editorFocus={selection.editorFocus}
           onEditorFocusHandled={selection.handleEditorFocusHandled}
         />
       </div>
+      <HotkeysHelp />
     </div>
   );
 }

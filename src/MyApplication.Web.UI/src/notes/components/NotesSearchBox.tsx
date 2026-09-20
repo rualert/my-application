@@ -1,7 +1,7 @@
 import { CloseButton, Combobox, Group, Loader, ScrollArea, Stack, Text, TextInput, useCombobox } from "@mantine/core";
 import { Check, Search } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FocusEvent, KeyboardEvent } from "react";
 import { UNTITLED_TITLE } from "../domain";
 import { useDoubleShift } from "../hooks/useDoubleShift";
 import { MIN_SEARCH_QUERY_LENGTH, useNotesSearch } from "../hooks/useNotesSearch";
@@ -34,6 +34,15 @@ export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchB
   const search = useNotesSearch(query);
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
 
+  // Откуда пришли в поиск: туда же возвращаемся, если передумали искать (см. leave).
+  const originRef = useRef<HTMLElement | null>(null);
+
+  const rememberOrigin = (element: Element | null) => {
+    if (element instanceof HTMLElement && element !== document.body && element !== combobox.targetRef.current) {
+      originRef.current = element;
+    }
+  };
+
   const clear = () => {
     setQuery("");
     setEnterPending(false);
@@ -41,10 +50,27 @@ export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchB
     combobox.targetRef.current?.focus();
   };
 
+  // Уйти из поиска: возвращаем курсор ровно туда, где он был до захода сюда, — в тексте
+  // заметки он встаёт на прежнее место (docs/docs/notes/web-ui.md, «Уйти из поиска без
+  // выбора»). Если той точки уже нет в документе — например, заметку успели сменить
+  // предпросмотром, и прежний редактор размонтирован, — ведём курсор в открытую
+  // заметку, как при зафиксированном выборе.
+  const leave = () => {
+    setEnterPending(false);
+    combobox.closeDropdown();
+    const origin = originRef.current;
+    if (origin?.isConnected) {
+      origin.focus();
+      return;
+    }
+    onCommit();
+  };
+
   // Двойной Shift: курсор — в поле, запрос выделен целиком (сразу печатать новый или
   // стрелкой оставить прежний). Фокус запускает обычный onFocus — новый заход в поиск.
   useDoubleShift(() => {
     const input = combobox.targetRef.current;
+    rememberOrigin(document.activeElement);
     input?.focus();
     if (input instanceof HTMLInputElement) {
       input.select();
@@ -92,9 +118,22 @@ export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchB
     }
   };
 
+  const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
+    rememberOrigin(event.relatedTarget);
+    // Возвращение в поле — новый заход: выдача не берётся из памяти, поиск идёт заново.
+    search.restart();
+    combobox.openDropdown();
+  };
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Esc при непустом поле очищает запрос, при пустом — уводит из поиска: так уходят
+    // и когда ничего не нашлось, и когда передумали искать.
     if (event.key === "Escape") {
-      clear();
+      if (query.length > 0) {
+        clear();
+      } else {
+        leave();
+      }
       return;
     }
     // Enter на выделенной строке обрабатывает сам Combobox (onOptionSubmit); здесь —
@@ -165,11 +204,7 @@ export function NotesSearchBox({ openNoteId, onPreview, onCommit }: NotesSearchB
             combobox.openDropdown();
             combobox.resetSelectedOption();
           }}
-          onFocus={() => {
-            // Возвращение в поле — новый заход: выдача не берётся из памяти, поиск идёт заново.
-            search.restart();
-            combobox.openDropdown();
-          }}
+          onFocus={handleFocus}
           onClick={() => combobox.openDropdown()}
           onKeyDown={handleKeyDown}
         />
