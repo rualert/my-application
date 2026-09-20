@@ -45,7 +45,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         _respawner = await Respawner.CreateAsync(_connection, new RespawnerOptions
         {
             DbAdapter = DbAdapter.Postgres,
-            SchemasToInclude = ["public"],
+            // Схема заметок, а не public: таблицы контекста лежат в его собственной схеме.
+            SchemasToInclude = [NotesDbContext.SchemaName],
         });
     }
 
@@ -55,11 +56,10 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// </summary>
     public NotesDbContext CreateNotesContext()
     {
-        var options = new DbContextOptionsBuilder<NotesDbContext>()
-            .UseNpgsql(_postgres.GetConnectionString())
-            .Options;
+        var optionsBuilder = new DbContextOptionsBuilder<NotesDbContext>();
+        NotesDbContext.ConfigureNpgsql(optionsBuilder, _postgres.GetConnectionString());
 
-        return new NotesDbContext(options);
+        return new NotesDbContext(optionsBuilder.Options);
     }
 
     /// <summary>

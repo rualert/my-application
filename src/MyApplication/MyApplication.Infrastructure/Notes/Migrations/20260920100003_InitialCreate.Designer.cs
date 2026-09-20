@@ -12,17 +12,19 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyApplication.Infrastructure.Notes.Migrations
 {
     [DbContext(typeof(NotesDbContext))]
-    [Migration("20260920044940_MakeNoteTitleNullable")]
-    partial class MakeNoteTitleNullable
+    [Migration("20260920100003_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasDefaultSchema("notes")
                 .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("MyApplication.Domain.Notes.Note", b =>
@@ -48,11 +50,27 @@ namespace MyApplication.Infrastructure.Notes.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Text")
+                        .HasDatabaseName("IX_notes_Text_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Text"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Text"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("IX_notes_Title_trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Title"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Title"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("notes", (string)null);
+                    b.ToTable("notes", "notes");
                 });
 #pragma warning restore 612, 618
         }

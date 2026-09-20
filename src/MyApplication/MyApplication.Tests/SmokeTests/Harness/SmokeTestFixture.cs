@@ -3,6 +3,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MyApplication.Application.Auth;
+using MyApplication.Infrastructure.Auth;
+using MyApplication.Infrastructure.Notes;
 using MyApplication.Tests.UseCasesTests.Auth.Harness;
 using Npgsql;
 using Respawn;
@@ -77,7 +79,11 @@ public sealed class SmokeTestFixture : IAsyncLifetime
         _respawner = await Respawner.CreateAsync(_connection, new RespawnerOptions
         {
             DbAdapter = DbAdapter.Postgres,
-            SchemasToInclude = ["public"],
+            // Схема у каждого DbContext своя: перечислить нужно все. Пропущенную схему
+            // Respawn не тронет и не пожалуется (ошибка «No tables found» будет, только
+            // если таблиц нет ни в одной из перечисленных) — данные из неё начнут
+            // переходить из теста в тест.
+            SchemasToInclude = [AuthDbContext.SchemaName, NotesDbContext.SchemaName],
         });
     }
 

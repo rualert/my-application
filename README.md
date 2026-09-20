@@ -211,17 +211,35 @@ railway logs --service api --lines 100            # runtime-логи
 
 При старте приложение само применяет непримененные миграции (`Database.MigrateAsync()` в `Program.cs`) — отдельно накатывать схему вручную не нужно, но PostgreSQL должен быть доступен на момент старта.
 
-Добавление новой миграции после изменения сущностей в `MyApplication.Domain`/маппинга в `MyApplication.Infrastructure`:
+**Схемы.** У каждого `DbContext` своя схема PostgreSQL, и таблица истории миграций (`__EFMigrationsHistory`) у каждого тоже своя, внутри этой схемы: `auth` (`users`, `refresh_tokens`) и `notes` (`notes`). В `public` таблиц нет (там только расширение `pg_trgm`). Схема — это граница между фичами, а не изоляция: один пользователь БД видит обе.
+
+> ⚠️ **Базу, созданную до появления схем, обновить «на месте» нельзя** — её нужно пересоздать. Пустая история в новой схеме заставит EF заново выполнить `InitialCreate` поверх уже существующих `public.notes`/`public.users`, и приложение упадёт при старте. Локально: `docker compose -f ci/docker-compose.db.yml down -v`, затем поднять стек заново. В Railway — удалить данные сервиса `Postgres` до первого запуска новой версии.
+>
+> Заодно старые миграции склеены в одну `InitialCreate` на контекст: обратная совместимость не требовалась.
+
+Добавление новой миграции после изменения сущностей в `MyApplication.Domain`/маппинга в `MyApplication.Infrastructure`. Контекста два, поэтому `--context` обязателен, а миграции лежат в папке своей фичи:
 
 ```bash
 cd src/MyApplication
+
+# фича «Заметки»
 dotnet ef migrations add <Название> \
+  --context NotesDbContext \
   --project MyApplication.Infrastructure \
   --startup-project MyApplication.Api \
   --output-dir Notes/Migrations
+
+# фича «Авторизация»
+dotnet ef migrations add <Название> \
+  --context AuthDbContext \
+  --project MyApplication.Infrastructure \
+  --startup-project MyApplication.Api \
+  --output-dir Auth/Migrations
 ```
 
 Требует установленного `dotnet-ef` (`dotnet tool install --global dotnet-ef`), версия которого должна соответствовать версии EF Core в проекте.
+
+При первом запуске на пустой базе в логе появятся две строки `ERR` `Failed executing DbCommand` с `SELECT ... FROM <схема>."__EFMigrationsHistory"` — так EF проверяет ещё не существующую таблицу истории. Это нормально, при следующем запуске их нет.
 
 ## Документация по бизнес-логике
 

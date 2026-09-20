@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyApplication.Infrastructure.Auth.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    [Migration("20260918105951_InitialCreate")]
+    [Migration("20260920100013_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,6 +20,7 @@ namespace MyApplication.Infrastructure.Auth.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasDefaultSchema("auth")
                 .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -54,7 +55,7 @@ namespace MyApplication.Infrastructure.Auth.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("refresh_tokens", (string)null);
+                    b.ToTable("refresh_tokens", "auth");
                 });
 
             modelBuilder.Entity("MyApplication.Domain.Auth.User", b =>
@@ -83,7 +84,7 @@ namespace MyApplication.Infrastructure.Auth.Migrations
                     b.HasIndex("GoogleSubjectId")
                         .IsUnique();
 
-                    b.ToTable("users", (string)null);
+                    b.ToTable("users", "auth");
                 });
 #pragma warning restore 612, 618
         }

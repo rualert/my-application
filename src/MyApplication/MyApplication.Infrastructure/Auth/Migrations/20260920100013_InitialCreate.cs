@@ -11,8 +11,12 @@ namespace MyApplication.Infrastructure.Auth.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(
+                name: "auth");
+
             migrationBuilder.CreateTable(
                 name: "refresh_tokens",
+                schema: "auth",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -29,6 +33,7 @@ namespace MyApplication.Infrastructure.Auth.Migrations
 
             migrationBuilder.CreateTable(
                 name: "users",
+                schema: "auth",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -44,17 +49,20 @@ namespace MyApplication.Infrastructure.Auth.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_refresh_tokens_TokenHash",
+                schema: "auth",
                 table: "refresh_tokens",
                 column: "TokenHash",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_refresh_tokens_UserId",
+                schema: "auth",
                 table: "refresh_tokens",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_users_GoogleSubjectId",
+                schema: "auth",
                 table: "users",
                 column: "GoogleSubjectId",
                 unique: true);
@@ -64,10 +72,12 @@ namespace MyApplication.Infrastructure.Auth.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "refresh_tokens");
+                name: "refresh_tokens",
+                schema: "auth");
 
             migrationBuilder.DropTable(
-                name: "users");
+                name: "users",
+                schema: "auth");
         }
     }
 }

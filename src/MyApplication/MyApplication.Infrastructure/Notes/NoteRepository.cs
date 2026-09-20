@@ -67,10 +67,12 @@ public class NoteRepository : INoteRepository
     {
         var pattern = $"%{EscapeLikePattern(query)}%";
 
+        // Схема в FROM записана литералом (имя схемы нельзя передать параметром) —
+        // она должна совпадать с NotesDbContext.SchemaName.
         return await _context.Notes
             .FromSql($"""
                       SELECT n.*
-                      FROM notes AS n
+                      FROM notes.notes AS n
                       WHERE n."UserId" = {userId}
                         AND (n."Title" ILIKE {pattern}
                           OR n."Text" ILIKE {pattern}

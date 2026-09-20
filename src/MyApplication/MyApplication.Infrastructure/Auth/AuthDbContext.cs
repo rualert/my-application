@@ -1,10 +1,18 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using MyApplication.Domain.Auth;
 
 namespace MyApplication.Infrastructure.Auth;
 
 public class AuthDbContext : DbContext
 {
+    /// <summary>
+    ///     Схема PostgreSQL, в которой живут таблицы этого контекста и его же
+    ///     таблица истории миграций. Свои схемы у каждого контекста — граница
+    ///     bounded context'а видна и в самой базе, а истории миграций не смешиваются.
+    /// </summary>
+    public const string SchemaName = "auth";
+
     /// <summary>
     ///     Создаёт контекст EF Core с переданными опциями подключения.
     /// </summary>
@@ -15,8 +23,23 @@ public class AuthDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    /// <summary>
+    ///     Подключает контекст к PostgreSQL и кладёт таблицу истории миграций в
+    ///     <see cref="SchemaName"/>. Единственное место, где это настраивается:
+    ///     оба места создания контекста (приложение и тесты) идут через него, иначе
+    ///     история оказалась бы не там, где её ищет <c>MigrateAsync()</c>.
+    /// </summary>
+    public static void ConfigureNpgsql(DbContextOptionsBuilder options, string? connectionString)
+    {
+        options.UseNpgsql(
+            connectionString,
+            npgsql => npgsql.MigrationsHistoryTable(HistoryRepository.DefaultTableName, SchemaName));
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasDefaultSchema(SchemaName);
+
         modelBuilder.Entity<User>(builder =>
         {
             builder.ToTable("users");
