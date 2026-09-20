@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // Дев-сервер проксирует /Notes и /Auth на локально запущенный API (см. README),
@@ -18,5 +18,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  // Тесты лежат рядом с кодом (*.test.ts / *.test.tsx), общая обвязка — в src/test/.
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
   },
 });

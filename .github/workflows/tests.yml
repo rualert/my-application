@@ -31,3 +31,30 @@ jobs:
       - name: Test
         working-directory: src/MyApplication
         run: dotnet test --no-build -c Release
+
+  web-ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/MyApplication.Web.UI
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Версия Node — как в ci/Dockerfile.web-ui.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/MyApplication.Web.UI/package-lock.json
+
+      - name: Install
+        run: npm ci --global=false
+
+      # tsc -b + vite build: заодно проверяет типы и в самих тестах.
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
