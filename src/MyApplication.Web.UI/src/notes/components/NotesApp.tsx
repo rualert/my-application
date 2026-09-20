@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { EditorFocusTarget } from "../hooks/useNoteSelection";
 import { NoteEditorPanel } from "./NoteEditorPanel";
 import { NotesListPanel } from "./NotesListPanel";
 
@@ -9,12 +10,14 @@ interface NotesAppProps {
   // Выбранная заметка живёт выше: её выбирают и из списка, и из поиска в шапке.
   selectedNoteId: string | null;
   onSelect: (id: string | null) => void;
-  // Просьба поставить курсор в редактор (зафиксирован выбор в поиске) — см. NoteEditor.
-  editorFocusRequested: boolean;
+  // Открыть только что созданную заметку (курсор — в её заголовок).
+  onCreated: (id: string) => void;
+  // Просьба поставить курсор в редактор — см. NoteEditor.
+  editorFocus: EditorFocusTarget | null;
   onEditorFocusHandled: () => void;
 }
 
-export function NotesApp({ selectedNoteId, onSelect, editorFocusRequested, onEditorFocusHandled }: NotesAppProps) {
+export function NotesApp({ selectedNoteId, onSelect, onCreated, editorFocus, onEditorFocusHandled }: NotesAppProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -31,12 +34,13 @@ export function NotesApp({ selectedNoteId, onSelect, editorFocusRequested, onEdi
           onToggleCollapse={() => setCollapsed((value) => !value)}
           selectedNoteId={selectedNoteId}
           onSelect={onSelect}
+          onCreated={onCreated}
         />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <NoteEditorPanel
           noteId={selectedNoteId}
-          editorFocusRequested={editorFocusRequested}
+          editorFocus={editorFocus}
           onEditorFocusHandled={onEditorFocusHandled}
         />
       </div>

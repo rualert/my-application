@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { NoteDetails, NoteSearchResult, UpdateNoteRequest } from "../api/types";
+import type { CreateNoteRequest, NoteDetails, NoteSearchResult, NoteSummary, UpdateNoteRequest } from "../api/types";
 
 export interface RecordedUpdate {
   id: string;
@@ -13,6 +13,8 @@ export class FakeNotesBackend {
   readonly updates: RecordedUpdate[] = [];
   // Каждый дошедший до сервера поисковый запрос — по ним видно, ушёл ли запрос вообще.
   readonly searchQueries: string[] = [];
+  // Каждый POST /Notes, дошедший до сервера.
+  readonly creations: CreateNoteRequest[] = [];
 
   private readonly notes = new Map<string, NoteDetails>();
   private updateGate: Promise<void> | null = null;
@@ -111,6 +113,21 @@ export class FakeNotesBackend {
       }
 
       return HttpResponse.json(this.searchResults);
+    }),
+
+    // Все заметки одной страницей, новые сверху (как отдаёт настоящий список).
+    http.get("/Notes", () => {
+      const summaries: NoteSummary[] = [...this.notes.values()]
+        .reverse()
+        .map(({ id, title, createdAt, updatedAt }) => ({ id, title, createdAt, updatedAt }));
+      return HttpResponse.json(summaries);
+    }),
+
+    http.post("/Notes", async ({ request }) => {
+      const body = (await request.json()) as CreateNoteRequest;
+      this.creations.push(body);
+
+      return HttpResponse.json(this.addNote({ id: `created-${this.creations.length}`, ...body }));
     }),
 
     http.get("/Notes/:id", async ({ params }) => {

@@ -1,23 +1,32 @@
 import { Loader, Stack, Text } from "@mantine/core";
 import { useState } from "react";
 import { useNote } from "../hooks/useNote";
+import type { EditorFocusTarget } from "../hooks/useNoteSelection";
 import { NoteEditor, type EditorMode } from "./NoteEditor";
 
 interface NoteEditorPanelProps {
   noteId: string | null;
   // Просьба поставить курсор в редактор — см. NoteEditor. Пока заметка грузится,
-  // флаг просто ждёт: редактора ещё нет, а исполнит его тот, что появится.
-  editorFocusRequested?: boolean;
+  // она просто ждёт: редактора ещё нет, а исполнит её тот, что появится.
+  editorFocus?: EditorFocusTarget | null;
   onEditorFocusHandled?: () => void;
 }
 
 const noop = () => {};
 
-export function NoteEditorPanel({ noteId, editorFocusRequested = false, onEditorFocusHandled = noop }: NoteEditorPanelProps) {
+export function NoteEditorPanel({ noteId, editorFocus = null, onEditorFocusHandled = noop }: NoteEditorPanelProps) {
   const noteQuery = useNote(noteId);
   // Режим живёт здесь, а не в NoteEditor: тот перемонтируется на каждую заметку,
   // а выбранный режим (правка/просмотр) при переключении заметок сохраняется.
   const [mode, setMode] = useState<EditorMode>("edit");
+
+  // Заголовка в режиме просмотра нет, а пустую новую заметку смотреть незачем, — так что
+  // просьба поставить курсор в заголовок сама переводит в режим редактирования. Именно
+  // при рендере, а не эффектом: созданная заметка уже в кэше, редактор монтируется в этом
+  // же проходе, и его эффект успел бы счесть просьбу неисполнимой и снять её.
+  if (editorFocus === "title" && mode === "view") {
+    setMode("edit");
+  }
 
   if (!noteId) {
     return (
@@ -49,7 +58,7 @@ export function NoteEditorPanel({ noteId, editorFocusRequested = false, onEditor
       note={noteQuery.data}
       mode={mode}
       onModeChange={setMode}
-      focusRequested={editorFocusRequested}
+      focusTarget={editorFocus}
       onFocusHandled={onEditorFocusHandled}
     />
   );

@@ -6,6 +6,7 @@ import type { NoteDetails } from "../../api/types";
 import { isUntitled, UNTITLED_TITLE } from "../domain";
 import { useNoteAutosave } from "../hooks/useNoteAutosave";
 import { useNow } from "../hooks/useNow";
+import type { EditorFocusTarget } from "../hooks/useNoteSelection";
 import { formatSaveStatusText } from "../saveStatusText";
 
 const STATUS_TICK_MS = 30_000;
@@ -16,36 +17,44 @@ interface NoteEditorProps {
   note: NoteDetails;
   mode: EditorMode;
   onModeChange: (mode: EditorMode) => void;
-  // Просят поставить курсор в редактор (зафиксирован выбор в поиске). Флаг живёт
-  // выше, потому что просьба может прийти раньше, чем заметка загрузилась и этот
-  // редактор появился; исполнив её (или сочтя неисполнимой), редактор снимает флаг.
-  focusRequested: boolean;
+  // Просят поставить курсор в редактор: в заголовок (новая заметка) или в начало
+  // текста (зафиксирован выбор в поиске). Просьба живёт выше, потому что может прийти
+  // раньше, чем заметка загрузилась и этот редактор появился; исполнив её (или сочтя
+  // неисполнимой), редактор её снимает.
+  focusTarget: EditorFocusTarget | null;
   onFocusHandled: () => void;
 }
 
 // Монтируется заново для каждой заметки (key={note.id} в NoteEditorPanel):
 // черновик и автосохранение живут ровно столько, сколько открыта эта заметка,
 // а при закрытии хук досохраняет несохранённое (см. useNoteAutosave).
-export function NoteEditor({ note, mode, onModeChange, focusRequested, onFocusHandled }: NoteEditorProps) {
+export function NoteEditor({ note, mode, onModeChange, focusTarget, onFocusHandled }: NoteEditorProps) {
   const autosave = useNoteAutosave(note);
   const now = useNow(STATUS_TICK_MS);
   const untitled = isUntitled(autosave.title);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Курсор — в начало текста (docs/docs/notes/web-ui.md, «Выбор результата»). В режиме
-  // просмотра полей нет, ставить курсор некуда — просьбу всё равно снимаем, чтобы она не
-  // «дожила» до момента, когда пользователь сам переключит режим.
+  // Курсор — в конец заголовка (новая заметка) или в начало текста (docs/docs/notes/web-ui.md,
+  // «Выбор результата»). В режиме просмотра полей нет, ставить курсор некуда — просьбу
+  // всё равно снимаем, чтобы она не «дожила» до момента, когда пользователь сам переключит
+  // режим. (Для заголовка режим переключает NoteEditorPanel ещё до этого эффекта.)
   useEffect(() => {
-    if (!focusRequested) {
+    if (!focusTarget) {
       return;
     }
     if (mode === "edit") {
-      textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(0, 0);
+      if (focusTarget === "title") {
+        const titleInput = titleInputRef.current;
+        titleInput?.focus();
+        titleInput?.setSelectionRange(titleInput.value.length, titleInput.value.length);
+      } else {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(0, 0);
+      }
     }
     onFocusHandled();
-  }, [focusRequested, mode, onFocusHandled]);
+  }, [focusTarget, mode, onFocusHandled]);
 
   // Enter или стрелка вниз в заголовке — курсор в начало текста; стрелка вверх
   // из начала текста — курсор в конец заголовка. Делает переход между полями

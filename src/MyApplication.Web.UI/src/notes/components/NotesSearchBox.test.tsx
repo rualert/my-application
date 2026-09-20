@@ -7,6 +7,7 @@ import { FakeNotesBackend } from "../../test/FakeNotesBackend";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { SearchWorkspace } from "../../test/SearchWorkspace";
 import { server } from "../../test/server";
+import { DOUBLE_SHIFT_INTERVAL_MS } from "../hooks/useDoubleShift";
 import { SEARCH_DEBOUNCE_MS } from "../hooks/useNotesSearch";
 
 // Поиск по заметкам — docs/docs/notes/web-ui.md, раздел "Поиск". Sut — поле поиска
@@ -47,7 +48,7 @@ describe("Notes search box", () => {
     vi.useRealTimers();
   });
 
-  const searchInput = () => screen.getByRole("textbox", { name: "Поиск по заметкам" });
+  const searchInput = () => screen.getByRole<HTMLInputElement>("textbox", { name: "Поиск по заметкам" });
   const clearButton = () => screen.queryByRole("button", { name: "Очистить поиск" });
   const dropdown = () => screen.queryByRole("listbox");
   // Строку выдачи ищем внутри списка: тот же текст есть и в открытой заметке.
@@ -372,6 +373,117 @@ describe("Notes search box", () => {
       expect(noteTextArea()).toBeNull();
       expect(screen.getByRole("button", { name: "Редактирование" })).toBeInTheDocument();
       expect(searchInput()).toHaveFocus();
+    });
+  });
+
+  describe("jumping to the field with a double Shift", () => {
+    async function renderWorkspace() {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime, delay: null });
+      renderWithProviders(<SearchWorkspace />);
+      return user;
+    }
+
+    it("tells about the shortcut in the placeholder", async () => {
+      // Arrange
+      // Act
+      await renderWorkspace();
+
+      // Assert
+      expect(searchInput()).toHaveAttribute("placeholder", "Поиск по заметкам · двойной Shift");
+    });
+
+    it("moves the cursor from the note text into the search field", async () => {
+      // Arrange
+      const user = await search("пок");
+      await user.keyboard("{Enter}");
+      await advance(0);
+      await user.keyboard("{Enter}");
+      await advance(SEARCH_DEBOUNCE_MS);
+      await expectCursorAtStartOfNoteText();
+
+      // Act
+      await user.keyboard("{Shift}{Shift}");
+
+      // Assert
+      expect(searchInput()).toHaveFocus();
+    });
+
+    it("selects the whole query when the cursor comes from elsewhere", async () => {
+      // Arrange
+      const user = await search("пок");
+      await user.click(document.body);
+      await advance(SEARCH_DEBOUNCE_MS);
+
+      // Act
+      await user.keyboard("{Shift}{Shift}");
+
+      // Assert
+      expect(searchInput()).toHaveFocus();
+      expect(searchInput().selectionStart).toBe(0);
+      expect(searchInput().selectionEnd).toBe(3);
+    });
+
+    it("selects the whole query when the cursor is already in the field", async () => {
+      // Arrange
+      const user = await search("пок");
+
+      // Act
+      await user.keyboard("{Shift}{Shift}");
+
+      // Assert
+      expect(searchInput()).toHaveFocus();
+      expect(searchInput().selectionStart).toBe(0);
+      expect(searchInput().selectionEnd).toBe(3);
+    });
+
+    it("searches afresh, as on any return to the field", async () => {
+      // Arrange
+      const user = await search("пок");
+      await user.click(document.body);
+      await advance(SEARCH_DEBOUNCE_MS);
+
+      // Act
+      await user.keyboard("{Shift}{Shift}");
+      await settleSearch();
+
+      // Assert
+      expect(backend.searchQueries).toEqual(["пок", "пок"]);
+      expect(within(screen.getByRole("listbox")).getByText("молоко")).toBeInTheDocument();
+    });
+
+    it("does nothing when the second Shift comes too late", async () => {
+      // Arrange
+      const user = await renderWorkspace();
+
+      // Act
+      await user.keyboard("{Shift}");
+      await advance(DOUBLE_SHIFT_INTERVAL_MS + 1);
+      await user.keyboard("{Shift}");
+
+      // Assert
+      expect(searchInput()).not.toHaveFocus();
+    });
+
+    it("does not take a capital letter typed between two Shifts for a double Shift", async () => {
+      // Arrange
+      const user = await renderWorkspace();
+
+      // Act
+      await user.keyboard("{Shift>}П{/Shift}{Shift>}Р{/Shift}");
+
+      // Assert
+      expect(searchInput()).not.toHaveFocus();
+    });
+
+    it("does not take Shift held together with Alt (switching the keyboard layout) for a double Shift", async () => {
+      // Arrange
+      const user = await renderWorkspace();
+
+      // Act
+      await user.keyboard("{Alt>}{Shift}{Shift}{/Alt}");
+
+      // Assert
+      expect(searchInput()).not.toHaveFocus();
     });
   });
 

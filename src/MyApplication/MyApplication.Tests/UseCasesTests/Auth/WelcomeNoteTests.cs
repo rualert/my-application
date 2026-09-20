@@ -29,6 +29,23 @@ public class WelcomeNoteTests : AuthServiceTestBase
     }
 
     [Fact]
+    public async Task LoginWithGoogleAsync_ForNewUser_WelcomeNoteEndsWithHotkeysSection()
+    {
+        // Arrange
+        GoogleValidator.NextResult = new GoogleUserInfo("google-subject-hotkeys", "hotkeys@example.com", "Пользователь");
+
+        // Act
+        var result = await Sut.LoginWithGoogleAsync("any-id-token", CancellationToken.None);
+
+        // Assert
+        var summary = Assert.Single(await Notes.GetAllAsync(UserIdOf(result), 0, 50, CancellationToken.None));
+        var note = await Notes.GetByIdAsync(UserIdOf(result), summary.Id, CancellationToken.None);
+        var lastHeading = note.Text.Split('\n').Last(line => line.StartsWith("## "));
+        Assert.Equal("## Горячие клавиши", lastHeading);
+        Assert.Contains("Shift", note.Text[note.Text.IndexOf("## Горячие клавиши", StringComparison.Ordinal)..]);
+    }
+
+    [Fact]
     public async Task LoginWithGoogleAsync_ForExistingUser_DoesNotCreateAnotherWelcomeNote()
     {
         // Arrange

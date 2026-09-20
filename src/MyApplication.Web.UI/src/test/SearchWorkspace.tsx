@@ -13,11 +13,11 @@ export function SearchWorkspace() {
       <NotesSearchBox
         openNoteId={selection.selectedNoteId}
         onPreview={selection.select}
-        onCommit={selection.requestEditorFocus}
+        onCommit={selection.requestTextFocus}
       />
       <NoteEditorPanel
         noteId={selection.selectedNoteId}
-        editorFocusRequested={selection.editorFocusRequested}
+        editorFocus={selection.editorFocus}
         onEditorFocusHandled={selection.handleEditorFocusHandled}
       />
     </>
