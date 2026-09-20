@@ -76,7 +76,7 @@ public class NoteService : INoteService
     /// </exception>
     public async Task<IReadOnlyList<NoteSearchResult>> SearchAsync(Guid callerUserId, string query, CancellationToken cancellationToken)
     {
-        var trimmedQuery = query?.Trim() ?? string.Empty;
+        var trimmedQuery = query.Trim();
         if (trimmedQuery.Length < MinQueryLength)
         {
             throw new ApplicationException($"Поисковый запрос должен быть не короче {MinQueryLength} символов.");
