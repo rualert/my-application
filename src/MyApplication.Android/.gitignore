@@ -1,0 +1,14 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+*.keystore
+*.jks
+captures/
+.cxx/
+
+# Studio пишет сюда закрепление JVM для демона Gradle (сейчас 25) и ссылки на
+# автоскачивание JDK. Это поведение сборки у всех, включая CI на JDK 21, —
+# держим локально, в репозиторий не отдаём.
+gradle/gradle-daemon-jvm.properties

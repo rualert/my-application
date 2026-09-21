@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Тема нужна только окну активности до того, как отрисуется Compose: цвета и
+    типографику дальше задаёт Material 3 в коде (см. ui/theme/Theme.kt).
+    Родитель взят из платформы, чтобы не тащить com.google.android.material
+    ради одной строки.
+-->
+<resources>
+    <style name="Theme.MyNotesApp" parent="@android:style/Theme.Material.Light.NoActionBar" />
+</resources>

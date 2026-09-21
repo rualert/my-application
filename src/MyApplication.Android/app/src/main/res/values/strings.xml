@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MyNotesApp</string>
+    <string name="login_title">MyNotesApp</string>
+    <string name="login_subtitle">Заметки, доступные с любого устройства</string>
+    <string name="login_button">Войти через аккаунт Google</string>
+    <string name="login_failed">Не удалось войти. Попробуйте ещё раз.</string>
+    <string name="login_cancelled">Вход отменён.</string>
+    <string name="login_client_id_missing">Не задан идентификатор клиента Google — см. README.</string>
+    <string name="session_unavailable">Сервер недоступен. Проверьте соединение.</string>
+    <string name="retry">Повторить</string>
+    <string name="logout">Выйти</string>
+    <string name="untitled">Без названия</string>
+    <string name="search">Поиск по заметкам</string>
+    <string name="search_clear">Очистить запрос</string>
+    <string name="search_close">Выйти из поиска</string>
+    <string name="search_in_progress">Идёт поиск…</string>
+    <string name="search_nothing_found">Ничего не найдено</string>
+    <string name="add_note">Добавить заметку</string>
+    <string name="notes_empty">Заметок пока нет</string>
+    <string name="note_not_selected">Выберите заметку в списке</string>
+    <string name="back_to_list">Назад к списку</string>
+    <string name="delete_note">Удалить заметку</string>
+    <string name="delete_note_question">Удалить заметку?</string>
+    <string name="delete">Удалить</string>
+    <string name="cancel">Отмена</string>
+    <string name="switch_to_view">Режим просмотра</string>
+    <string name="switch_to_edit">Режим редактирования</string>
+    <string name="note_title_hint">Без названия</string>
+    <string name="sync_channel_name">Синхронизация</string>
+    <string name="not_sent">Не отправлено</string>
+    <string name="search_offline">Поиск недоступен без сети</string>
+    <string name="conflict_title">Заметка изменена в другом месте</string>
+    <string name="conflict_reload">Загрузить актуальную</string>
+    <string name="conflict_overwrite">Перезаписать моей</string>
+</resources>

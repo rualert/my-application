@@ -1,0 +1,73 @@
+name: android
+
+# Прогоняет тесты Android-клиента и собирает отладочный APK, складывая его
+# артефактом сборки — проверка, что код собирается, и сборка «посмотреть».
+#
+# Для раздачи такой APK не годится: отладочный keystore раннер генерирует
+# заново при каждом запуске, отпечаток SHA-1 у него каждый раз новый и в
+# Google Cloud не зарегистрирован, поэтому вход через Google в нём не
+# работает. Подписанный APK для установки выпускает android-release.yml.
+#
+# Отдельный workflow, а не job в tests.yml: Android SDK и кэш Gradle не нужны
+# ни backend-, ни web-ui-джобам, а сам он не входит в обязательные проверки
+# master — код Android не может сломать API или веб-интерфейс.
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'src/MyApplication.Android/**'
+      - '.github/workflows/android.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'src/MyApplication.Android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/MyApplication.Android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Android SDK на ubuntu-latest уже установлен, отдельного шага не нужно.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Бит исполнения у gradlew выставлен в самом индексе git (файл создавался
+      # на Windows, где такого бита нет), поэтому chmod здесь не нужен.
+
+      - name: Тесты
+        run: ./gradlew testDebugUnitTest
+
+      # Отчёт нужен только когда что-то упало: раннер после прогона удаляют
+      # вместе с файлами, а одной строки «FAILED» в логе мало, чтобы понять,
+      # чем прогон на Linux отличается от прогона на машине разработчика.
+      - name: Отчёт о тестах, если они упали
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-report
+          path: |
+            src/MyApplication.Android/app/build/reports/tests/testDebugUnitTest
+            src/MyApplication.Android/app/build/test-results/testDebugUnitTest
+
+      # Идентификатор клиента Google — секрет репозитория. Без него сборка
+      # проходит, но вход в собранном APK сообщит, что идентификатор не задан.
+      - name: Собрать APK
+        run: ./gradlew assembleDebug -PmyNotesApp.googleServerClientId="${{ secrets.GOOGLE_CLIENT_ID }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: myapplication-android-debug-apk
+          path: src/MyApplication.Android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
