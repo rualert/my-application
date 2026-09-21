@@ -119,7 +119,13 @@ class NoteConflictTest : NotesViewModelTestBase() {
         // Act
         Sut.onTextChange("Правка после конфликта")
         testScheduler.advanceTimeBy(AUTOSAVE_DELAY_MILLIS + 1)
-        awaitUntil("сохранение дошло до сервера") { backend.updates.size > attemptsBefore }
+        awaitUntil(
+            "сохранение дошло до сервера",
+            diagnostics = {
+                "редактор=${Sut.editor.value}, в очереди=${backend.pendingCount()}, " +
+                    "запросов=${backend.updates.size} (было $attemptsBefore)"
+            },
+        ) { backend.updates.size > attemptsBefore }
 
         // Assert
         assertEquals("Правка после конфликта", backend.textOf(id))

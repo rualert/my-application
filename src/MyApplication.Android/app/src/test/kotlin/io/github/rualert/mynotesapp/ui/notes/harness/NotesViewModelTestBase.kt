@@ -68,11 +68,18 @@ abstract class NotesViewModelTestBase {
      * запускала бы отложенное сохранение — тогда проверка «таймер не
      * сдвигается при дальнейшем наборе» проходила бы и с debounce.
      */
-    protected suspend fun TestScope.awaitUntil(description: String, condition: () -> Boolean) {
+    protected suspend fun TestScope.awaitUntil(
+        description: String,
+        // Что показать, если ждать не дождались. Сообщение «не дождались» само
+        // по себе не говорит, чего не хватило, а не всякое падение
+        // воспроизводится там, где его можно посмотреть отладчиком.
+        diagnostics: () -> String = { "" },
+        condition: () -> Boolean,
+    ) {
         val deadline = System.currentTimeMillis() + REAL_TIMEOUT_MILLIS
         while (!condition()) {
             if (System.currentTimeMillis() > deadline) {
-                throw AssertionError("Не дождались: $description")
+                throw AssertionError("Не дождались: $description ${diagnostics()}".trim())
             }
 
             testScheduler.runCurrent()
