@@ -108,7 +108,7 @@ class NotesSyncer(
 
     private suspend fun pushCreate(note: NoteEntity) {
         val created = api.create(CreateNoteRequest(note.title, note.text))
-        dao.upsert(note.synced(created))
+        applyResponse(note, created)
     }
 
     private suspend fun pushUpdate(note: NoteEntity, conflicts: MutableList<SyncConflict>) {
@@ -116,11 +116,11 @@ class NotesSyncer(
 
         try {
             val updated = api.update(serverId, UpdateNoteRequest(note.title, note.text, note.version))
-            dao.upsert(note.synced(updated))
+            applyResponse(note, updated)
         } catch (failure: HttpException) {
             if (failure.code() == HTTP_CONFLICT) {
                 // Правки остаются на устройстве: выбор, чьи оставить, за пользователем.
-                dao.upsert(note.copy(hasConflict = true))
+                dao.markConflicted(note.localId)
                 conflicts += SyncConflict(note.localId, note.title)
             } else {
                 throw failure
@@ -147,15 +147,25 @@ class NotesSyncer(
         dao.delete(note)
     }
 
-    private fun NoteEntity.synced(response: NoteResponse) = copy(
-        serverId = response.id,
-        title = response.title,
-        text = response.text,
-        version = response.version,
-        updatedAt = Instant.parse(response.updatedAt).toEpochMilli(),
-        pendingOperation = PendingOperation.None,
-        hasConflict = false,
-    )
+    /**
+     * Принимает ответ сервера на отправку [sent].
+     *
+     * Записывается не по [sent], а по тому, что в базе сейчас: пока запрос
+     * был в пути, заметку могли исправить или удалить — см.
+     * [NotesDao.applyPushed].
+     */
+    private suspend fun applyResponse(sent: NoteEntity, response: NoteResponse) {
+        dao.applyPushed(
+            localId = sent.localId,
+            sentTitle = sent.title,
+            sentText = sent.text,
+            serverId = response.id,
+            title = response.title,
+            text = response.text,
+            version = response.version,
+            updatedAt = Instant.parse(response.updatedAt).toEpochMilli(),
+        )
+    }
 
     private companion object {
         const val PAGE_SIZE = 50

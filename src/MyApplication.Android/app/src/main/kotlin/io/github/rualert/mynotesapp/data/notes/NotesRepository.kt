@@ -113,36 +113,14 @@ class NotesRepository(
      * обновление тому, чего там нет, бессмысленно.
      */
     suspend fun saveDraft(localId: String, title: String?, text: String) {
-        val note = dao.byLocalId(localId) ?: return
-        val now = clock.instant().toEpochMilli()
-
-        dao.upsert(
-            note.copy(
-                title = title,
-                text = text,
-                updatedAt = now,
-                savedLocallyAt = now,
-                pendingOperation = if (note.serverId == null) {
-                    PendingOperation.Create
-                } else {
-                    PendingOperation.Update
-                },
-            ),
-        )
-
+        dao.saveDraft(localId, title, text, savedAt = clock.instant().toEpochMilli())
         scheduler.requestSync()
     }
 
     suspend fun deleteNote(localId: String) {
-        val note = dao.byLocalId(localId) ?: return
-
-        if (note.serverId == null) {
-            // Сервер о ней не знает — и не узнает.
-            dao.delete(note)
-            return
-        }
-
-        dao.upsert(note.copy(pendingOperation = PendingOperation.Delete, hasConflict = false))
+        // Заметку, о которой сервер не знает, удаление уберёт сразу, и
+        // отправлять будет нечего: лишняя просьба отправить безобидна.
+        dao.markForDelete(localId)
         scheduler.requestSync()
     }
 
@@ -153,15 +131,12 @@ class NotesRepository(
 
         return runCatching {
             val full = api.byId(serverId)
-            dao.upsert(
-                note.copy(
-                    title = full.title,
-                    text = full.text,
-                    version = full.version,
-                    updatedAt = Instant.parse(full.updatedAt).toEpochMilli(),
-                    pendingOperation = PendingOperation.None,
-                    hasConflict = false,
-                ),
+            dao.replaceWithServer(
+                localId = localId,
+                title = full.title,
+                text = full.text,
+                version = full.version,
+                updatedAt = Instant.parse(full.updatedAt).toEpochMilli(),
             )
         }
     }
@@ -173,13 +148,7 @@ class NotesRepository(
 
         return runCatching {
             val full = api.byId(serverId)
-            dao.upsert(
-                note.copy(
-                    version = full.version,
-                    pendingOperation = PendingOperation.Update,
-                    hasConflict = false,
-                ),
-            )
+            dao.keepMineWithVersion(localId, full.version)
             scheduler.requestSync()
         }
     }
