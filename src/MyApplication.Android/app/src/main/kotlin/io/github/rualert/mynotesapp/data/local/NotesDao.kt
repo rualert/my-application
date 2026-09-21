@@ -169,6 +169,11 @@ interface NotesDao {
      * текстом и в очереди, но забирает из ответа `serverId` и версию —
      * следующая отправка пойдёт от той версии, до которой сервер дошёл
      * благодаря этой, и конфликта на ровном месте не будет.
+     *
+     * Дата создания берётся из ответа в любом случае. У заметки, созданной
+     * на устройстве, она была по часам телефона, а список сервер сортирует
+     * по своей — и по ней же [replaceServerNotes] решает, на какую страницу
+     * заметка должна была попасть. С неверной датой её сочли бы удалённой.
      */
     @Transaction
     suspend fun applyPushed(
@@ -179,6 +184,7 @@ interface NotesDao {
         title: String?,
         text: String,
         version: Int,
+        createdAt: Long,
         updatedAt: Long,
     ) {
         val current = byLocalId(localId) ?: return
@@ -191,6 +197,7 @@ interface NotesDao {
             current.copy(
                 serverId = serverId,
                 version = version,
+                createdAt = createdAt,
                 title = if (changedSincePush) current.title else title,
                 text = if (changedSincePush) current.text else text,
                 updatedAt = if (changedSincePush) current.updatedAt else updatedAt,
@@ -245,14 +252,13 @@ interface NotesDao {
      * серверная копия для них устарела по определению — это её и предстоит
      * заменить.
      *
-     * @param deleteMissing убирать ли заметки, которых в присланном списке нет.
-     * Так узнают об удалении в другом месте, но **только когда пришёл список
-     * целиком**. Для второй и последующих страниц это неверно: страница за
-     * концом списка приходит пустой, и «удаление отсутствующих» стёрло бы с
-     * устройства вообще всё.
+     * @param covered промежуток дат создания, который присланная страница
+     * покрывает целиком: заметки из него, которых в странице нет, удалены в
+     * другом месте и убираются с устройства. Всё, что вне промежутка, страница
+     * не видела, и отсутствие там ничего не значит. `null` — не убирать ничего.
      */
     @Transaction
-    suspend fun replaceServerNotes(serverNotes: List<NoteEntity>, deleteMissing: Boolean) {
+    suspend fun replaceServerNotes(serverNotes: List<NoteEntity>, covered: CoveredRange?) {
         val local = allNotes().associateBy { it.serverId }
 
         serverNotes.forEach { fromServer ->
@@ -266,13 +272,14 @@ interface NotesDao {
             }
         }
 
-        if (!deleteMissing) {
+        if (covered == null) {
             return
         }
 
         val serverIds = serverNotes.mapNotNull { it.serverId }.toSet()
         allNotes()
             .filter { it.serverId != null && it.serverId !in serverIds }
+            .filter { it.createdAt in covered }
             .filter { it.pendingOperation == PendingOperation.None && !it.hasConflict }
             .forEach { delete(it) }
     }

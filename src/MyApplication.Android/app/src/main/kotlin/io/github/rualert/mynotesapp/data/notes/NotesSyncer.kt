@@ -4,6 +4,7 @@ import io.github.rualert.mynotesapp.data.api.CreateNoteRequest
 import io.github.rualert.mynotesapp.data.api.NoteResponse
 import io.github.rualert.mynotesapp.data.api.NotesApi
 import io.github.rualert.mynotesapp.data.api.UpdateNoteRequest
+import io.github.rualert.mynotesapp.data.local.CoveredRange
 import io.github.rualert.mynotesapp.data.local.NoteEntity
 import io.github.rualert.mynotesapp.data.local.NotesDao
 import io.github.rualert.mynotesapp.data.local.PendingOperation
@@ -110,9 +111,35 @@ class NotesSyncer(
             )
         }
 
-        // Удалённые в другом месте заметки видно только по полному списку:
-        // страницу за его концом сервер отдаёт пустой.
-        dao.replaceServerNotes(serverNotes, deleteMissing = from == 0)
+        dao.replaceServerNotes(serverNotes, covered = coveredBy(serverNotes, from, count))
+    }
+
+    /**
+     * Промежуток дат создания, в котором страница перечисляет **все**
+     * заметки сервера, — только там отсутствие заметки в ней значит, что её
+     * удалили в другом месте.
+     *
+     * Сервер отдаёт список от новых к старым, поэтому страница — сплошной
+     * отрезок этого порядка. Сверху он не ограничен, если страница первая,
+     * снизу — если она неполная, то есть последняя. Концы исключены: заметка
+     * с той же датой, что у крайней, могла попасть на соседнюю страницу.
+     *
+     * Раньше отсутствующие удалялись по всей первой странице, и каждое
+     * обновление стирало с устройства всё, что лежало дальше первых
+     * [PAGE_SIZE] заметок, — а обновление идёт при каждом запуске.
+     *
+     * @return `null`, если страница не покрывает ничего: пустая страница за
+     * концом списка ничего не говорит о том, что лежит перед ней.
+     */
+    private fun coveredBy(page: List<NoteEntity>, from: Int, count: Int): CoveredRange? {
+        if (page.isEmpty()) {
+            return if (from == 0) CoveredRange(after = null, before = null) else null
+        }
+
+        return CoveredRange(
+            after = if (page.size < count) null else page.minOf { it.createdAt },
+            before = if (from == 0) null else page.maxOf { it.createdAt },
+        )
     }
 
     private suspend fun pushCreate(note: NoteEntity) {
@@ -172,6 +199,7 @@ class NotesSyncer(
             title = response.title,
             text = response.text,
             version = response.version,
+            createdAt = Instant.parse(response.createdAt).toEpochMilli(),
             updatedAt = Instant.parse(response.updatedAt).toEpochMilli(),
         )
     }
