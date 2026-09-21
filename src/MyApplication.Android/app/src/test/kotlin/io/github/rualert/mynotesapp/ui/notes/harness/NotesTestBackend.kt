@@ -32,6 +32,7 @@ import retrofit2.create
 import java.io.IOException
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 
 /**
  * Настоящий API заметок в миниатюре: хранит заметки в памяти и соблюдает
@@ -64,10 +65,30 @@ class NotesTestBackend : AutoCloseable {
     private val notes = linkedMapOf<String, StoredNote>()
     private val server = MockWebServer()
 
-    val updates = mutableListOf<Update>()
+    /**
+     * Замок на всё состояние сервера.
+     *
+     * Меняет его поток диспетчера MockWebServer, а читают проверки из потока
+     * теста — без общей блокировки у них нет ни атомарности, ни гарантии
+     * увидеть свежее значение. Оба следствия наблюдались вживую: проверка
+     * видела уже записанный запрос на сохранение, но ещё старый текст
+     * заметки, а ожидание в цикле подолгу крутилось на устаревшем значении —
+     * отсюда сценарии по десять секунд вместо долей секунды. На двух ядрах
+     * (раннер CI) это воспроизводилось стабильно, на четырёх — изредка.
+     */
+    private val lock = Any()
+
+    private val recordedUpdates = mutableListOf<Update>()
+    private val recordedSearchQueries = mutableListOf<String>()
+
+    /**
+     * Снимок запросов сохранения. Именно снимок, а не сам список: читающая
+     * сторона иначе обошла бы замок.
+     */
+    val updates: List<Update> get() = synchronized(lock) { recordedUpdates.toList() }
 
     /** Запросы, с которыми приложение ходило в поиск, — по одному на запрос. */
-    val searchQueries = mutableListOf<String>()
+    val searchQueries: List<String> get() = synchronized(lock) { recordedSearchQueries.toList() }
 
     private var searchResults: List<NoteSearchResultResponse> = emptyList()
 
@@ -85,6 +106,10 @@ class NotesTestBackend : AutoCloseable {
     /** Пока true, любой запрос к серверу обрывается, как без сети. */
     @Volatile
     private var offline = false
+
+    /** Пока не null, ответы на поиск ждут на нём — см. [holdSearches]. */
+    @Volatile
+    private var searchHold: CountDownLatch? = null
 
     init {
         server.dispatcher = object : Dispatcher() {
@@ -120,6 +145,24 @@ class NotesTestBackend : AutoCloseable {
         )
     }
 
+    /**
+     * Задерживает ответы на поиск до [releaseSearches].
+     *
+     * Нужно там, где проверяется само состояние «запрос ушёл и ещё не
+     * вернулся»: без задержки ответ успевает прийти раньше, чем проверка
+     * посмотрит на состояние, и тест зависит от того, кто кого опередил.
+     * Тот же приём, что `holdSearches()` в обвязке веб-интерфейса.
+     */
+    fun holdSearches() {
+        searchHold = CountDownLatch(1)
+    }
+
+    /** Отпускает задержанные [holdSearches] ответы. */
+    fun releaseSearches() {
+        searchHold?.countDown()
+        searchHold = null
+    }
+
     /** Сеть пропала: запросы обрываются, как в метро. */
     fun goOffline() {
         offline = true
@@ -141,38 +184,38 @@ class NotesTestBackend : AutoCloseable {
     fun pendingCount(): Int =
         runBlocking { dao.allNotes().count { it.pendingOperation.name != "None" } }
 
-    fun addNote(title: String?, text: String): String {
+    fun addNote(title: String?, text: String): String = synchronized(lock) {
         val id = UUID.randomUUID().toString()
         val now = Instant.parse("2026-09-20T12:00:00Z")
         notes[id] = StoredNote(id, title, text, version = 1, createdAt = now, updatedAt = now)
-        return id
+        id
     }
 
     /** Кто-то изменил заметку в другом месте: версия на сервере ушла вперёд. */
-    fun editElsewhere(id: String, text: String) {
+    fun editElsewhere(id: String, text: String) = synchronized(lock) {
         val note = notes.getValue(id)
         note.text = text
         note.version += 1
         note.updatedAt = Instant.parse("2026-09-20T13:00:00Z")
     }
 
-    fun titleOf(id: String): String? = notes.getValue(id).title
+    fun titleOf(id: String): String? = synchronized(lock) { notes.getValue(id).title }
 
-    fun textOf(id: String): String = notes.getValue(id).text
+    fun textOf(id: String): String = synchronized(lock) { notes.getValue(id).text }
 
-    fun versionOf(id: String): Int = notes.getValue(id).version
+    fun versionOf(id: String): Int = synchronized(lock) { notes.getValue(id).version }
 
-    fun contains(id: String): Boolean = notes.containsKey(id)
+    fun contains(id: String): Boolean = synchronized(lock) { notes.containsKey(id) }
 
     /** Заголовки всех заметок, которые сейчас есть на сервере. */
-    fun allTitles(): List<String?> = notes.values.map { it.title }
+    fun allTitles(): List<String?> = synchronized(lock) { notes.values.map { it.title } }
 
     /**
      * Что сервер ответит на поиск. Ранжирование и разметку совпадений делает
      * настоящий сервер (Postgres с pg_trgm), воспроизводить их здесь
      * бессмысленно — проверяется поведение клиента, а не работа поиска.
      */
-    fun setSearchResults(results: List<NoteSearchResultResponse>) {
+    fun setSearchResults(results: List<NoteSearchResultResponse>) = synchronized(lock) {
         searchResults = results
     }
 
@@ -189,6 +232,10 @@ class NotesTestBackend : AutoCloseable {
         )
 
     override fun close() {
+        // Задержанный ответ иначе оставил бы поток диспетчера ждать вечно, и
+        // закрытие сервера повисло бы вместе с ним.
+        releaseSearches()
+
         // Сначала останавливаем отправку: не остановив, мы закрываем базу из-под
         // работающей корутины, и следующий тест падает на чужом «connection is
         // closed» — ошибка всплывает не там, где произошла.
@@ -199,7 +246,23 @@ class NotesTestBackend : AutoCloseable {
         server.close()
     }
 
+    /**
+     * Обработка запроса целиком под замком: для проверок из потока теста
+     * запрос либо ещё не начался, либо уже полностью применён. Промежуточных
+     * состояний вроде «запрос записан, но текст заметки ещё прежний» не
+     * бывает, и ждать по одному признаку, а проверять другой — безопасно.
+     */
     private fun handle(request: RecordedRequest): MockResponse {
+        // Задержка — до замка: иначе придержанный ответ держал бы на себе всё
+        // состояние сервера, и тест не смог бы ни проверить его, ни отпустить.
+        if (request.url.encodedPath == "/Notes/search") {
+            searchHold?.await()
+        }
+
+        return synchronized(lock) { respond(request) }
+    }
+
+    private fun respond(request: RecordedRequest): MockResponse {
         val path = request.url.encodedPath
         val method = request.method
 
@@ -208,7 +271,7 @@ class NotesTestBackend : AutoCloseable {
             // принят за идентификатор заметки.
             method == "GET" && path == "/Notes/search" -> {
                 val query = request.url.queryParameter("query").orEmpty()
-                searchQueries += query
+                recordedSearchQueries += query
 
                 if (query.length < MIN_QUERY_LENGTH) {
                     MockResponse.Builder()
@@ -244,7 +307,7 @@ class NotesTestBackend : AutoCloseable {
                 val id = path.removePrefix("/Notes/")
                 val note = notes[id] ?: return notFound()
                 val body = json.decodeFromString<UpdateNoteRequest>(request.bodyText())
-                updates += Update(id, body.title, body.text, body.version)
+                recordedUpdates += Update(id, body.title, body.text, body.version)
 
                 if (body.version != note.version) {
                     return MockResponse.Builder()

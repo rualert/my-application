@@ -86,7 +86,12 @@ class NoteConflictTest : NotesViewModelTestBase() {
 
         // Act
         Sut.overwriteWithMine()
-        awaitUntil("черновик записан поверх") { backend.textOf(id) == "Моя правка" }
+        // Снятый конфликт — состояние клиента, и приходит оно чуть позже
+        // записи на сервере: проверять его сразу после неё значит гадать,
+        // кто кого опередил.
+        awaitUntil("конфликт разрешён, черновик записан поверх") {
+            !Sut.editor.value.hasConflict && backend.textOf(id) == "Моя правка"
+        }
 
         // Assert
         assertFalse(Sut.editor.value.hasConflict)
@@ -103,7 +108,12 @@ class NoteConflictTest : NotesViewModelTestBase() {
         Sut.onStopped()
         awaitUntil("сервер ответил конфликтом") { Sut.editor.value.hasConflict }
         Sut.overwriteWithMine()
-        awaitUntil("черновик записан поверх") { backend.textOf(id) == "Моя правка" }
+        // Ждём и запись на сервере, и снятый в редакторе конфликт: пока он
+        // стоит, автосохранение намеренно молчит, и правка, набранная в этот
+        // промежуток, никуда бы не поехала.
+        awaitUntil("конфликт разрешён, черновик записан поверх") {
+            !Sut.editor.value.hasConflict && backend.textOf(id) == "Моя правка"
+        }
         val attemptsBefore = backend.updates.size
 
         // Act

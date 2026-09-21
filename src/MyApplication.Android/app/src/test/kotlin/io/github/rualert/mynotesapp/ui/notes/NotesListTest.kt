@@ -40,6 +40,12 @@ class NotesListTest : NotesViewModelTestBase() {
         // Act
         Sut.deleteNote(newerLocalId)
         awaitUntil("открылась соседняя заметка") { Sut.editor.value.noteId == olderLocalId }
+        // Список приезжает из базы своим потоком событий и от редактора
+        // отстаёт: без ожидания проверка ниже зависела от того, кто успел
+        // первым, и подводила примерно раз на десять прогонов.
+        awaitUntil("удалённая заметка ушла из списка") {
+            Sut.list.value.notes.map { it.id } == listOf(olderLocalId)
+        }
 
         // Assert
         assertTrue("После удаления приложение возвращает к списку", Sut.showList.value)

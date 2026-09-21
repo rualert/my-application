@@ -54,6 +54,11 @@ class NotesSearchTest : NotesViewModelTestBase() {
     @Test
     fun `быстрый набор порождает один запрос`() = runTest(dispatcher) {
         // Arrange
+        // Ответ на поиск придерживается: проверяется как раз состояние
+        // «запрос ушёл и ещё не вернулся», а без задержки ответ успевал
+        // прийти раньше, чем проверка на него посмотрит, — примерно один
+        // прогон из пяти падал на ровном месте.
+        backend.holdSearches()
         Sut.openSearch()
 
         // Act
@@ -76,6 +81,7 @@ class NotesSearchTest : NotesViewModelTestBase() {
         assertFalse("Пока набирают, запрос не уходит", searchingWhileTyping)
         assertTrue("После паузы запрос уходит", searchingAfterPause)
 
+        backend.releaseSearches()
         awaitUntil("пришёл ответ") { !Sut.search.value.isSearching }
         // Ушёл ровно один запрос — с последним набранным текстом.
         assertEquals(listOf("покупки"), backend.searchQueries)
