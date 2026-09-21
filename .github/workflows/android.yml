@@ -49,6 +49,18 @@ jobs:
       - name: Тесты
         run: ./gradlew testDebugUnitTest
 
+      # Отчёт нужен только когда что-то упало: раннер после прогона удаляют
+      # вместе с файлами, а одной строки «FAILED» в логе мало, чтобы понять,
+      # чем прогон на Linux отличается от прогона на машине разработчика.
+      - name: Отчёт о тестах, если они упали
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-report
+          path: |
+            src/MyApplication.Android/app/build/reports/tests/testDebugUnitTest
+            src/MyApplication.Android/app/build/test-results/testDebugUnitTest
+
       # Идентификатор клиента Google — секрет репозитория. Без него сборка
       # проходит, но вход в собранном APK сообщит, что идентификатор не задан.
       - name: Собрать APK

@@ -102,6 +102,18 @@ android {
     // Robolectric поднимает настоящий Android-рантайм, и ресурсы ему нужны.
     testOptions {
         unitTests.isIncludeAndroidResources = true
+
+        // Упавший тест печатает в консоль сам себя целиком: ожидаемое,
+        // фактическое и стек. Без этого в логе CI остаётся одна строка
+        // «FAILED», а отчёт лежит на раннере, который уже удалён, — и
+        // непроходящий на CI тест нечем разбирать.
+        unitTests.all { test ->
+            test.testLogging {
+                events("failed")
+                exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                showStackTraces = true
+            }
+        }
     }
 }
 
