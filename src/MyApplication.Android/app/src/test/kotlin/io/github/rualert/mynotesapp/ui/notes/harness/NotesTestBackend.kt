@@ -116,6 +116,10 @@ class NotesTestBackend : AutoCloseable {
     @Volatile
     private var searchHold: CountDownLatch? = null
 
+    /** Пока не null, ответы на сохранение ждут на нём — см. [holdUpdates]. */
+    @Volatile
+    private var updateHold: CountDownLatch? = null
+
     init {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse = handle(request)
@@ -168,6 +172,23 @@ class NotesTestBackend : AutoCloseable {
     fun releaseSearches() {
         searchHold?.countDown()
         searchHold = null
+    }
+
+    /**
+     * Задерживает ответы на сохранение до [releaseUpdates].
+     *
+     * Запрос при этом сервер получает и применяет сразу — ждёт только ответ.
+     * Так открывается окно между «запрос ушёл» и «клиент узнал о результате»,
+     * в котором заметку успевают править дальше.
+     */
+    fun holdUpdates() {
+        updateHold = CountDownLatch(1)
+    }
+
+    /** Отпускает задержанные [holdUpdates] ответы. */
+    fun releaseUpdates() {
+        updateHold?.countDown()
+        updateHold = null
     }
 
     /** Сеть пропала: запросы обрываются, как в метро. */
@@ -262,6 +283,7 @@ class NotesTestBackend : AutoCloseable {
         // Задержанный ответ иначе оставил бы поток диспетчера ждать вечно, и
         // закрытие сервера повисло бы вместе с ним.
         releaseSearches()
+        releaseUpdates()
 
         // Сначала останавливаем отправку: не остановив, мы закрываем базу из-под
         // работающей корутины, и следующий тест падает на чужом «connection is
@@ -286,7 +308,16 @@ class NotesTestBackend : AutoCloseable {
             searchHold?.await()
         }
 
-        return synchronized(lock) { respond(request) }
+        val response = synchronized(lock) { respond(request) }
+
+        // Сохранение задерживается уже после того, как сервер его применил:
+        // ждёт только ответ. Поэтому «запрос записан — значит, применён»
+        // остаётся верным и для задержанных запросов.
+        if (request.method == "PUT") {
+            updateHold?.await()
+        }
+
+        return response
     }
 
     private fun respond(request: RecordedRequest): MockResponse {

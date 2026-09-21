@@ -108,6 +108,32 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
     }
 
     @Test
+    fun `правка во время отправки не теряется`() = runTest(dispatcher) {
+        // Arrange
+        val id = backend.addNote("Заголовок", "Исходный текст")
+        openServerNote(id)
+        // Ответ на сохранение придерживается: окно между «запрос ушёл» и
+        // «клиент узнал о результате» — то самое, в котором набранное
+        // затиралось ответом сервера и пропадало вместе с очередью.
+        backend.holdUpdates()
+
+        // Act
+        Sut.onTextChange("Первая правка")
+        Sut.onStopped()
+        awaitUntil("первая правка дошла до сервера") { backend.updates.isNotEmpty() }
+        Sut.onTextChange("Вторая правка")
+        Sut.onStopped()
+        backend.releaseUpdates()
+
+        // Assert
+        awaitUntil(
+            "вторая правка тоже дошла до сервера",
+            diagnostics = { "редактор=${Sut.editor.value}, в очереди=${backend.pendingCount()}" },
+        ) { backend.textOf(id) == "Вторая правка" }
+        assertEquals("Вторая правка", Sut.editor.value.text)
+    }
+
+    @Test
     fun `переход к другой заметке сохраняет предыдущую`() = runTest(dispatcher) {
         // Arrange
         val first = backend.addNote("Первая", "Текст первой")
