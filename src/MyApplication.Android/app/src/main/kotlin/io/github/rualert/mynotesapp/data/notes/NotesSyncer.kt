@@ -77,7 +77,9 @@ class NotesSyncer(
             )
         }
 
-        dao.replaceServerNotes(serverNotes)
+        // Удалённые в другом месте заметки видно только по полному списку:
+        // страницу за его концом сервер отдаёт пустой.
+        dao.replaceServerNotes(serverNotes, deleteMissing = from == 0)
     }
 
     private suspend fun pushCreate(note: NoteEntity) {

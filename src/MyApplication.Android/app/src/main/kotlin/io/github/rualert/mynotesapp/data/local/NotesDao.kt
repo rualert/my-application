@@ -63,11 +63,16 @@ interface NotesDao {
      *
      * Заметки, у которых есть неотправленные изменения, остаются как есть:
      * серверная копия для них устарела по определению — это её и предстоит
-     * заменить. Всё остальное приводится к тому, что прислал сервер, включая
-     * исчезновение заметок, удалённых в другом месте.
+     * заменить.
+     *
+     * @param deleteMissing убирать ли заметки, которых в присланном списке нет.
+     * Так узнают об удалении в другом месте, но **только когда пришёл список
+     * целиком**. Для второй и последующих страниц это неверно: страница за
+     * концом списка приходит пустой, и «удаление отсутствующих» стёрло бы с
+     * устройства вообще всё.
      */
     @Transaction
-    suspend fun replaceServerNotes(serverNotes: List<NoteEntity>) {
+    suspend fun replaceServerNotes(serverNotes: List<NoteEntity>, deleteMissing: Boolean) {
         val local = allNotes().associateBy { it.serverId }
 
         serverNotes.forEach { fromServer ->
@@ -79,6 +84,10 @@ interface NotesDao {
 
                 else -> upsert(fromServer.copy(localId = existing.localId))
             }
+        }
+
+        if (!deleteMissing) {
+            return
         }
 
         val serverIds = serverNotes.mapNotNull { it.serverId }.toSet()

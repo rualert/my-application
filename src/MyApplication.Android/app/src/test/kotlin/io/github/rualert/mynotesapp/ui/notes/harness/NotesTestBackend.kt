@@ -220,9 +220,14 @@ class NotesTestBackend : AutoCloseable {
                 }
             }
 
-            method == "GET" && path == "/Notes" -> ok(
-                json.encodeToString(notes.values.reversed().map(::toSummaryResponse)),
-            )
+            // Страницы отдаются по-настоящему: за концом списка — пустая.
+            // Без этого не воспроизвести подгрузку следующей страницы.
+            method == "GET" && path == "/Notes" -> {
+                val from = request.url.queryParameter("from")?.toIntOrNull() ?: 0
+                val count = request.url.queryParameter("count")?.toIntOrNull() ?: 50
+                val page = notes.values.reversed().drop(from).take(count)
+                ok(json.encodeToString(page.map(::toSummaryResponse)))
+            }
 
             method == "POST" && path == "/Notes" -> {
                 val body = json.decodeFromString<Map<String, String?>>(request.bodyText())

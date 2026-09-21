@@ -149,6 +149,24 @@ class NotesOfflineTest : NotesViewModelTestBase() {
     }
 
     @Test
+    fun `подгрузка следующей страницы не стирает заметки`() = runTest(dispatcher) {
+        // Arrange
+        backend.addNote("Первая", "Текст")
+        backend.addNote("Вторая", "Текст")
+        Sut.refresh()
+        awaitUntil("список приехал") { Sut.list.value.notes.size == 2 }
+
+        // Act
+        // За концом списка сервер отдаёт пустую страницу — и она не значит,
+        // что заметок больше нет.
+        Sut.loadNextPage()
+        awaitUntil("подгрузка завершилась") { Sut.list.value.endReached }
+
+        // Assert
+        assertEquals(2, Sut.list.value.notes.size)
+    }
+
+    @Test
     fun `список заметок виден без сети`() = runTest(dispatcher) {
         // Arrange
         backend.addNote("Первая", "Текст")
