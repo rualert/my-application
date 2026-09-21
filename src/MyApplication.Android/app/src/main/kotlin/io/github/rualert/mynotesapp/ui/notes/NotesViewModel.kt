@@ -122,14 +122,17 @@ class NotesViewModel(
 
         // Открытую заметку сервер мог изменить, пока её правили офлайн: сюда
         // приходит признак конфликта, выставленный отправкой в фоне.
+        //
+        // База здесь главная в обе стороны. Раньше признак только выставлялся,
+        // и припозднившееся сообщение о конфликте, который пользователь уже
+        // разрешил, возвращало предупреждение обратно — а вместе с ним
+        // навсегда останавливало автосохранение, ведь при конфликте оно
+        // намеренно молчит.
         viewModelScope.launch {
             repository.observeConflicts().collect { conflicted ->
                 _editor.update { state ->
-                    if (state.noteId != null && state.noteId in conflicted) {
-                        state.copy(hasConflict = true)
-                    } else {
-                        state
-                    }
+                    val id = state.noteId
+                    if (id == null) state else state.copy(hasConflict = id in conflicted)
                 }
             }
         }
