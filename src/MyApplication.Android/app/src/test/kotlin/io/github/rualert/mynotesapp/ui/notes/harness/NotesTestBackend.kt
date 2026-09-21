@@ -1,5 +1,7 @@
 package io.github.rualert.mynotesapp.ui.notes.harness
 
+import io.github.rualert.mynotesapp.data.api.AuthApi
+import io.github.rualert.mynotesapp.data.api.AuthResponse
 import io.github.rualert.mynotesapp.data.api.HighlightedSegmentResponse
 import io.github.rualert.mynotesapp.data.api.NoteResponse
 import io.github.rualert.mynotesapp.data.api.NoteSearchResultResponse
@@ -7,6 +9,11 @@ import io.github.rualert.mynotesapp.data.api.NoteSummaryResponse
 import io.github.rualert.mynotesapp.data.api.NotesApi
 import io.github.rualert.mynotesapp.data.api.UpdateNoteRequest
 import androidx.room.Room
+import io.github.rualert.mynotesapp.data.auth.AuthRepository
+import io.github.rualert.mynotesapp.data.auth.CookieStorage
+import io.github.rualert.mynotesapp.data.auth.SessionCookieJar
+import io.github.rualert.mynotesapp.data.auth.SessionEndListener
+import io.github.rualert.mynotesapp.data.auth.TokenStore
 import io.github.rualert.mynotesapp.data.local.NotesDatabase
 import io.github.rualert.mynotesapp.data.notes.NotesRepository
 import io.github.rualert.mynotesapp.data.notes.NotesSyncer
@@ -97,6 +104,17 @@ class NotesTestBackend : AutoCloseable {
     val repository: NotesRepository
     val syncer: NotesSyncer
 
+    /**
+     * Сессия поверх того же сервера. Конец сессии подключён к заметкам так
+     * же, как в `AppContainer`, — за вычетом WorkManager и уведомлений,
+     * которых здесь нет.
+     */
+    val authRepository: AuthRepository
+
+    /** Пока false, `/Auth/refresh` отвечает `401`: сессия истекла или отозвана. */
+    @Volatile
+    private var sessionAlive = true
+
     private val database = Room
         .inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), NotesDatabase::class.java)
         .allowMainThreadQueries()
@@ -129,7 +147,14 @@ class NotesTestBackend : AutoCloseable {
         // Отсутствие сети имитируется на стороне клиента: обрыв сокета в
         // MockWebServer Retrofit принял за успешный пустой ответ, и «удаление
         // без сети» молча считалось выполненным.
+        val cookieJar = SessionCookieJar(
+            storage = CookieStorage(RuntimeEnvironment.getApplication()),
+            baseUrl = server.url("/"),
+            scope = syncScope,
+        )
+
         val client = OkHttpClient.Builder()
+            .cookieJar(cookieJar)
             .addInterceptor { chain ->
                 if (offline) throw IOException("Сети нет") else chain.proceed(chain.request())
             }
@@ -154,6 +179,18 @@ class NotesTestBackend : AutoCloseable {
                 synchronized(lock) { syncJobs += syncScope.launch { runCatching { syncer.push() } } }
             },
         )
+
+        authRepository = AuthRepository(
+            api = retrofit.create<AuthApi>(),
+            tokens = TokenStore(),
+            cookies = cookieJar,
+            onSessionEnded = SessionEndListener { syncScope.launch { repository.forgetLocalData() } },
+        )
+    }
+
+    /** Сервер больше не продлевает сессию: refresh-token истёк или отозван. */
+    fun expireSession() {
+        sessionAlive = false
     }
 
     /**
@@ -227,6 +264,9 @@ class NotesTestBackend : AutoCloseable {
     /** Локальный идентификатор заметки, известной серверу под [serverId]. */
     fun localIdOf(serverId: String): String? =
         runBlocking { dao.byServerId(serverId)?.localId }
+
+    /** Сколько заметок лежит на устройстве, включая помеченные на удаление. */
+    fun localNoteCount(): Int = runBlocking { dao.allNotes().size }
 
     /** Ждёт ли что-то отправки. */
     fun pendingCount(): Int =
@@ -325,6 +365,13 @@ class NotesTestBackend : AutoCloseable {
         val method = request.method
 
         return when {
+            method == "POST" && path == "/Auth/google" -> sessionResponse()
+
+            method == "POST" && path == "/Auth/refresh" ->
+                if (sessionAlive) sessionResponse() else MockResponse.Builder().code(401).build()
+
+            method == "POST" && path == "/Auth/logout" -> MockResponse.Builder().code(204).build()
+
             // Поиск разбирается раньше `/Notes/{id}`, иначе «search» будет
             // принят за идентификатор заметки.
             method == "GET" && path == "/Notes/search" -> {
@@ -390,10 +437,23 @@ class NotesTestBackend : AutoCloseable {
         }
     }
 
+    /** Ответ на вход и продление: access-token в теле, refresh-token в cookie. */
+    private fun sessionResponse() = MockResponse.Builder()
+        .code(200)
+        .addHeader("Content-Type", "application/json")
+        .addHeader("Set-Cookie", "refresh_token=$REFRESH_TOKEN; Path=/Auth; HttpOnly")
+        .body(json.encodeToString(AuthResponse(ACCESS_TOKEN, "2026-09-22T13:00:00Z", USER_NAME)))
+        .build()
+
     private fun RecordedRequest.bodyText(): String = body?.utf8().orEmpty()
 
-    private companion object {
-        const val MIN_QUERY_LENGTH = 3
+    companion object {
+        /** Access-token, который сервер выдаёт при входе и продлении сессии. */
+        const val ACCESS_TOKEN = "access-token"
+        const val USER_NAME = "Тестовый пользователь"
+
+        private const val REFRESH_TOKEN = "refresh-token"
+        private const val MIN_QUERY_LENGTH = 3
     }
 
     private fun ok(body: String) = MockResponse.Builder()

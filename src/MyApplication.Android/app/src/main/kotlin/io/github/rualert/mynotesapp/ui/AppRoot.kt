@@ -6,12 +6,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.rualert.mynotesapp.appContainer
 import io.github.rualert.mynotesapp.data.auth.SessionState
@@ -54,10 +56,16 @@ fun AppRoot(modifier: Modifier = Modifier) {
 
             SessionState.Unavailable -> UnavailableScreen(onRetry = viewModel::restoreSession)
 
-            is SessionState.LoggedIn -> NotesScreen(
-                userName = current.userName,
-                onLogout = viewModel::logout,
-            )
+            // ViewModel заметок принадлежат сессии, а не активити: см.
+            // AuthViewModel.sessionViewModels.
+            is SessionState.LoggedIn -> CompositionLocalProvider(
+                LocalViewModelStoreOwner provides viewModel.sessionViewModels,
+            ) {
+                NotesScreen(
+                    userName = current.userName,
+                    onLogout = viewModel::logout,
+                )
+            }
         }
     }
 }

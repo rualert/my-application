@@ -5,12 +5,15 @@ import androidx.annotation.StringRes
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.rualert.mynotesapp.AppContainer
 import io.github.rualert.mynotesapp.R
 import io.github.rualert.mynotesapp.data.auth.AuthRepository
+import io.github.rualert.mynotesapp.data.auth.SessionState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,7 +39,28 @@ class AuthViewModel(
     private val _errorMessage = MutableStateFlow<Int?>(null)
     val errorMessage: StateFlow<Int?> = _errorMessage.asStateFlow()
 
+    /**
+     * Где живут ViewModel экранов вошедшего пользователя.
+     *
+     * Не хранилище активити: из него ViewModel заметок пережила бы выход, и
+     * следующий вошедший увидел бы в редакторе черновик прошлого, а её
+     * таймер автосохранения сработал бы уже после выхода. Это хранилище
+     * очищается, как только сессия кончается, — а поворот экрана, как и
+     * хранилище активити, переживает, потому что принадлежит этой ViewModel.
+     */
+    val sessionViewModels: ViewModelStoreOwner = object : ViewModelStoreOwner {
+        override val viewModelStore = ViewModelStore()
+    }
+
     init {
+        viewModelScope.launch {
+            session.collect { state ->
+                if (state !is SessionState.LoggedIn) {
+                    sessionViewModels.viewModelStore.clear()
+                }
+            }
+        }
+
         restoreSession()
     }
 
@@ -61,6 +85,10 @@ class AuthViewModel(
 
     fun logout() {
         viewModelScope.launch { repository.logout() }
+    }
+
+    override fun onCleared() {
+        sessionViewModels.viewModelStore.clear()
     }
 
     @StringRes
