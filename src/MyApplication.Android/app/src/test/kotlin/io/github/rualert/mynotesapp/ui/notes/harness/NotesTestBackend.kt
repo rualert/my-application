@@ -13,8 +13,10 @@ import io.github.rualert.mynotesapp.data.notes.NotesSyncer
 import io.github.rualert.mynotesapp.data.notes.SyncScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -103,6 +105,9 @@ class NotesTestBackend : AutoCloseable {
     private val dao = database.notesDao()
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** Запущенные фоновые отправки — их дожидается [awaitSyncIdle]. */
+    private val syncJobs = mutableListOf<Job>()
+
     /** Пока true, любой запрос к серверу обрывается, как без сети. */
     @Volatile
     private var offline = false
@@ -141,7 +146,9 @@ class NotesTestBackend : AutoCloseable {
             // Связь есть — отправляем сразу; в приложении то же самое делает
             // WorkManager, только дожидаясь сети. Ошибку отправки глушим так
             // же, как Worker: она не должна всплывать в чужом тесте.
-            scheduler = SyncScheduler { syncScope.launch { runCatching { syncer.push() } } },
+            scheduler = SyncScheduler {
+                synchronized(lock) { syncJobs += syncScope.launch { runCatching { syncer.push() } } }
+            },
         )
     }
 
@@ -175,6 +182,26 @@ class NotesTestBackend : AutoCloseable {
 
     /** Отправляет очередь и возвращает заметки, отклонённые из-за конфликта. */
     fun syncNow() = runBlocking { syncer.push() }
+
+    /**
+     * Дожидается фоновых отправок, запущенных сохранением заметки.
+     *
+     * Нужно там, где проверяется результат именно явной [syncNow]: фоновая
+     * отправка, поставленная в очередь ещё в офлайне, успевает выполниться
+     * после возвращения связи и забирает себе и отправку, и конфликт — тогда
+     * явной уже нечего делать. Ждать приходится в цикле: отправка может
+     * поставить следующую.
+     */
+    fun awaitSyncIdle() = runBlocking {
+        while (true) {
+            val running = synchronized(lock) { syncJobs.filterNot { it.isCompleted } }
+            if (running.isEmpty()) {
+                return@runBlocking
+            }
+
+            running.joinAll()
+        }
+    }
 
     /** Локальный идентификатор заметки, известной серверу под [serverId]. */
     fun localIdOf(serverId: String): String? =
