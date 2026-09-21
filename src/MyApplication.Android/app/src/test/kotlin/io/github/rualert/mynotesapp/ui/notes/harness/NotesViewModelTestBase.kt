@@ -4,13 +4,11 @@ import androidx.lifecycle.viewModelScope
 import io.github.rualert.mynotesapp.ui.notes.NotesViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
 import org.junit.runner.RunWith
@@ -57,37 +55,12 @@ abstract class NotesViewModelTestBase {
         Dispatchers.resetMain()
     }
 
-    /**
-     * Ждёт выполнения условия, давая работать и виртуальному времени, и
-     * настоящему вводу-выводу.
-     *
-     * Часы при этом **не переводятся вперёд** ([TestCoroutineScheduler.runCurrent],
-     * а не `advanceUntilIdle`). Причин две: в [NotesViewModel] крутится вечный
-     * таймер статуса сохранения, на котором прокрутка «до простоя» зависла бы
-     * навсегда, и, что важнее для смысла проверок, прокрутка вперёд сама
-     * запускала бы отложенное сохранение — тогда проверка «таймер не
-     * сдвигается при дальнейшем наборе» проходила бы и с debounce.
-     */
+    /** См. [awaitCondition]. */
     protected suspend fun TestScope.awaitUntil(
         description: String,
-        // Что показать, если ждать не дождались. Сообщение «не дождались» само
-        // по себе не говорит, чего не хватило, а не всякое падение
-        // воспроизводится там, где его можно посмотреть отладчиком.
         diagnostics: () -> String = { "" },
         condition: () -> Boolean,
-    ) {
-        val deadline = System.currentTimeMillis() + REAL_TIMEOUT_MILLIS
-        while (!condition()) {
-            if (System.currentTimeMillis() > deadline) {
-                throw AssertionError("Не дождались: $description ${diagnostics()}".trim())
-            }
-
-            testScheduler.runCurrent()
-            withContext(Dispatchers.Default) { delay(REAL_POLL_MILLIS) }
-        }
-
-        testScheduler.runCurrent()
-    }
+    ) = awaitCondition(description, diagnostics, condition)
 
     /** Открывает заметку и дожидается, когда она окажется в редакторе. */
     protected suspend fun TestScope.openAndAwait(id: String) {
@@ -116,7 +89,5 @@ abstract class NotesViewModelTestBase {
 
     protected companion object {
         const val AUTOSAVE_DELAY_MILLIS = 5_000L
-        private const val REAL_TIMEOUT_MILLIS = 10_000L
-        private const val REAL_POLL_MILLIS = 5L
     }
 }

@@ -54,6 +54,15 @@ class ConflictNotifier(private val context: Context) {
         NotificationManagerCompat.from(context).notify(conflict.localId.hashCode(), notification)
     }
 
+    /**
+     * Убирает уведомления, оставшиеся от прошлой сессии: в них заголовки
+     * заметок, которых на устройстве уже нет, — и следующему пользователю
+     * видеть их незачем.
+     */
+    fun cancelAll() {
+        NotificationManagerCompat.from(context).cancelAll()
+    }
+
     private fun canNotify(): Boolean = ContextCompat.checkSelfPermission(
         context,
         Manifest.permission.POST_NOTIFICATIONS,

@@ -153,6 +153,9 @@ class NotesRepository(
         }
     }
 
+    /** Сессия закончилась: заметки прошлого пользователя на устройстве не остаются. */
+    suspend fun forgetLocalData() = syncer.forgetAll()
+
     suspend fun search(query: String): List<NoteSearchResult> =
         api.search(query).map { result ->
             NoteSearchResult(

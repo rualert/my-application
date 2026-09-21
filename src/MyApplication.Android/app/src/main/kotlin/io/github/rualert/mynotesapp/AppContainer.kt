@@ -16,6 +16,7 @@ import io.github.rualert.mynotesapp.data.notes.sync.SyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -79,7 +80,9 @@ class AppContainer(context: Context) {
 
     private val notesApi: NotesApi by lazy { retrofit.create() }
 
-    val authRepository: AuthRepository by lazy { AuthRepository(authApi, tokens, cookieJar) }
+    val authRepository: AuthRepository by lazy {
+        AuthRepository(authApi, tokens, cookieJar, onSessionEnded = ::forgetSessionData)
+    }
 
     private val database: NotesDatabase by lazy { NotesDatabase.create(applicationContext) }
 
@@ -94,5 +97,20 @@ class AppContainer(context: Context) {
             syncer = notesSyncer,
             scheduler = SyncWorker.scheduler(applicationContext),
         )
+    }
+
+    /**
+     * Конец сессии: заметки, отправка и уведомления прошлого пользователя.
+     *
+     * Сначала отменяется отправка — иначе она успела бы начаться между
+     * очисткой и отменой. Работа уходит в фон, а не выполняется здесь же:
+     * см. [io.github.rualert.mynotesapp.data.auth.SessionEndListener].
+     */
+    private fun forgetSessionData() {
+        applicationScope.launch {
+            SyncWorker.cancel(applicationContext)
+            notesRepository.forgetLocalData()
+            conflictNotifier.cancelAll()
+        }
     }
 }

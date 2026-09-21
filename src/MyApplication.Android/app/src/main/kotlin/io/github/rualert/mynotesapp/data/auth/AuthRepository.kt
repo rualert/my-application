@@ -14,11 +14,15 @@ import java.io.IOException
 /**
  * Сессия пользователя: вход через Google, её восстановление при запуске,
  * обновление по refresh-cookie и выход.
+ *
+ * Данные, накопленные за сессию, живут ровно столько, сколько она сама: о её
+ * конце узнаёт [onSessionEnded].
  */
 class AuthRepository(
     private val api: AuthApi,
     private val tokens: TokenStore,
     private val cookies: SessionCookieJar,
+    private val onSessionEnded: SessionEndListener,
 ) {
 
     private val _session = MutableStateFlow<SessionState>(SessionState.Restoring)
@@ -92,9 +96,19 @@ class AuthRepository(
         _session.value = SessionState.LoggedIn(response.userName)
     }
 
+    /**
+     * Сессии больше нет — ни после выхода, ни после отказа сервера её
+     * продлить.
+     *
+     * Заметки прошлой сессии забываются в обоих случаях, даже неотправленные:
+     * отправить их уже не с чем, а войти следующим может другой человек.
+     * Оставь их лежать — и они уехали бы на сервер под его учётной записью,
+     * как только он войдёт.
+     */
     private suspend fun endSession() {
         tokens.accessToken = null
         cookies.clear()
+        onSessionEnded.onSessionEnded()
         _session.value = SessionState.LoggedOut
     }
 

@@ -39,6 +39,14 @@ class SyncWorker(
     companion object {
         private const val UNIQUE_WORK = "notes-sync"
 
+        /**
+         * Отменяет отправку, ещё не начатую или идущую прямо сейчас: после
+         * конца сессии отправлять нечего и не с чем.
+         */
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(UNIQUE_WORK)
+        }
+
         fun scheduler(context: Context): SyncScheduler = SyncScheduler {
             val request = OneTimeWorkRequestBuilder<SyncWorker>()
                 .setConstraints(

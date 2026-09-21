@@ -61,6 +61,15 @@ class NotesSyncer(
     /** Забирает страницу списка с сервера, не затирая неотправленное. */
     suspend fun pull(from: Int = 0, count: Int = PAGE_SIZE) = exchange.withLock { pullPage(from, count) }
 
+    /**
+     * Забывает все заметки на устройстве, в том числе неотправленные.
+     *
+     * Под тем же замком, что и обмен: страница списка, полученная ещё в
+     * прошлой сессии, иначе могла бы записаться в базу уже после очистки — и
+     * заметки прошлого пользователя достались бы следующему.
+     */
+    suspend fun forgetAll() = exchange.withLock { dao.deleteAll() }
+
     private suspend fun pushAll(): List<SyncConflict> {
         val conflicts = mutableListOf<SyncConflict>()
 
