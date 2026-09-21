@@ -272,11 +272,24 @@ class NotesTestBackend : AutoCloseable {
     fun pendingCount(): Int =
         runBlocking { dao.allNotes().count { it.pendingOperation.name != "None" } }
 
+    /** Сколько заметок сервер создал за всё время — от этого считается дата создания. */
+    private var created = 0L
+
+    /**
+     * Заводит заметку на сервере. Каждая следующая создана на секунду позже
+     * предыдущей: список сервер сортирует по дате создания, и по ней же
+     * приложение судит, какие заметки страница должна была содержать.
+     */
     fun addNote(title: String?, text: String): String = synchronized(lock) {
         val id = UUID.randomUUID().toString()
-        val now = Instant.parse("2026-09-20T12:00:00Z")
-        notes[id] = StoredNote(id, title, text, version = 1, createdAt = now, updatedAt = now)
+        val createdAt = Instant.parse("2026-09-20T12:00:00Z").plusSeconds(created++)
+        notes[id] = StoredNote(id, title, text, version = 1, createdAt = createdAt, updatedAt = createdAt)
         id
+    }
+
+    /** Заметку удалили в другом месте — на другом устройстве или в вебе. */
+    fun deleteElsewhere(id: String) {
+        synchronized(lock) { notes.remove(id) }
     }
 
     /** Кто-то изменил заметку в другом месте: версия на сервере ушла вперёд. */
