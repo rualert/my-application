@@ -57,6 +57,7 @@ Google Cloud отдельно.
 ```powershell
 .\gradlew.bat assembleDebug        # APK: app\build\outputs\apk\debug\app-debug.apk
 .\gradlew.bat installDebug         # собрать и поставить на подключённое устройство
+.\gradlew.bat testDebugUnitTest    # тесты (без устройства и эмулятора)
 ```
 
 APK ставится на телефон вручную, из неизвестных источников: в магазине

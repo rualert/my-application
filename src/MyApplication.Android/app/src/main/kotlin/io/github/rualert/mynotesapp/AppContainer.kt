@@ -8,6 +8,7 @@ import io.github.rualert.mynotesapp.data.auth.AuthRepository
 import io.github.rualert.mynotesapp.data.auth.CookieStorage
 import io.github.rualert.mynotesapp.data.auth.SessionCookieJar
 import io.github.rualert.mynotesapp.data.auth.TokenStore
+import io.github.rualert.mynotesapp.data.notes.NotesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -70,7 +71,9 @@ class AppContainer(context: Context) {
 
     private val authApi: AuthApi by lazy { retrofit.create() }
 
-    val notesApi: NotesApi by lazy { retrofit.create() }
+    private val notesApi: NotesApi by lazy { retrofit.create() }
 
     val authRepository: AuthRepository by lazy { AuthRepository(authApi, tokens, cookieJar) }
+
+    val notesRepository: NotesRepository by lazy { NotesRepository(notesApi) }
 }

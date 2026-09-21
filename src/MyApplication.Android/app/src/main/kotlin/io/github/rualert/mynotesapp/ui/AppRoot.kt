@@ -17,7 +17,7 @@ import io.github.rualert.mynotesapp.appContainer
 import io.github.rualert.mynotesapp.data.auth.SessionState
 import io.github.rualert.mynotesapp.ui.auth.AuthViewModel
 import io.github.rualert.mynotesapp.ui.auth.LoginScreen
-import io.github.rualert.mynotesapp.ui.notes.NotesPlaceholderScreen
+import io.github.rualert.mynotesapp.ui.notes.NotesScreen
 
 /**
  * Корень приложения: какой экран показан, решает состояние сессии. Пока она
@@ -54,7 +54,7 @@ fun AppRoot(modifier: Modifier = Modifier) {
 
             SessionState.Unavailable -> UnavailableScreen(onRetry = viewModel::restoreSession)
 
-            is SessionState.LoggedIn -> NotesPlaceholderScreen(
+            is SessionState.LoggedIn -> NotesScreen(
                 userName = current.userName,
                 onLogout = viewModel::logout,
             )
