@@ -1,11 +1,15 @@
 package io.github.rualert.mynotesapp.data.notes
 
 import io.github.rualert.mynotesapp.data.api.CreateNoteRequest
+import io.github.rualert.mynotesapp.data.api.HighlightedSegmentResponse
 import io.github.rualert.mynotesapp.data.api.NoteResponse
+import io.github.rualert.mynotesapp.data.api.NoteSearchResultResponse
 import io.github.rualert.mynotesapp.data.api.NoteSummaryResponse
 import io.github.rualert.mynotesapp.data.api.NotesApi
 import io.github.rualert.mynotesapp.data.api.UpdateNoteRequest
+import io.github.rualert.mynotesapp.domain.HighlightedSegment
 import io.github.rualert.mynotesapp.domain.Note
+import io.github.rualert.mynotesapp.domain.NoteSearchResult
 import io.github.rualert.mynotesapp.domain.NoteSummary
 import retrofit2.HttpException
 import java.time.Instant
@@ -24,6 +28,14 @@ class NotesRepository(private val api: NotesApi) {
         api.list(from, count).map(NoteSummaryResponse::toDomain)
 
     suspend fun byId(id: String): Note = api.byId(id).toDomain()
+
+    /**
+     * Ищет по своим заметкам, от более релевантных к менее (не более 10).
+     * Запрос короче трёх символов сервер отвергает, поэтому такие запросы
+     * [io.github.rualert.mynotesapp.ui.notes.NotesViewModel] и не отправляет.
+     */
+    suspend fun search(query: String): List<NoteSearchResult> =
+        api.search(query).map(NoteSearchResultResponse::toDomain)
 
     suspend fun create(title: String?, text: String): Note =
         api.create(CreateNoteRequest(title, text)).toDomain()
@@ -50,6 +62,14 @@ private fun NoteResponse.toDomain() = Note(
     createdAt = Instant.parse(createdAt),
     updatedAt = Instant.parse(updatedAt),
 )
+
+private fun NoteSearchResultResponse.toDomain() = NoteSearchResult(
+    id = id,
+    title = title.map(HighlightedSegmentResponse::toDomain),
+    snippet = snippet.map(HighlightedSegmentResponse::toDomain),
+)
+
+private fun HighlightedSegmentResponse.toDomain() = HighlightedSegment(text = text, match = match)
 
 private fun NoteSummaryResponse.toDomain() = NoteSummary(
     id = id,

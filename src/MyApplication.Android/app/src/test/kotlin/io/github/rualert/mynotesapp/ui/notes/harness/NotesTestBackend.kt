@@ -1,6 +1,8 @@
 package io.github.rualert.mynotesapp.ui.notes.harness
 
+import io.github.rualert.mynotesapp.data.api.HighlightedSegmentResponse
 import io.github.rualert.mynotesapp.data.api.NoteResponse
+import io.github.rualert.mynotesapp.data.api.NoteSearchResultResponse
 import io.github.rualert.mynotesapp.data.api.NoteSummaryResponse
 import io.github.rualert.mynotesapp.data.api.NotesApi
 import io.github.rualert.mynotesapp.data.api.UpdateNoteRequest
@@ -46,6 +48,11 @@ class NotesTestBackend : AutoCloseable {
 
     val updates = mutableListOf<Update>()
 
+    /** Запросы, с которыми приложение ходило в поиск, — по одному на запрос. */
+    val searchQueries = mutableListOf<String>()
+
+    private var searchResults: List<NoteSearchResultResponse> = emptyList()
+
     val repository: NotesRepository
 
     init {
@@ -86,6 +93,27 @@ class NotesTestBackend : AutoCloseable {
 
     fun contains(id: String): Boolean = notes.containsKey(id)
 
+    /**
+     * Что сервер ответит на поиск. Ранжирование и разметку совпадений делает
+     * настоящий сервер (Postgres с pg_trgm), воспроизводить их здесь
+     * бессмысленно — проверяется поведение клиента, а не работа поиска.
+     */
+    fun setSearchResults(results: List<NoteSearchResultResponse>) {
+        searchResults = results
+    }
+
+    /** Результат поиска с единственным выделенным словом в заголовке и тексте. */
+    fun searchResult(id: String, title: String?, before: String, match: String, after: String) =
+        NoteSearchResultResponse(
+            id = id,
+            title = title?.let { listOf(HighlightedSegmentResponse(it, false)) } ?: emptyList(),
+            snippet = listOf(
+                HighlightedSegmentResponse(before, false),
+                HighlightedSegmentResponse(match, true),
+                HighlightedSegmentResponse(after, false),
+            ),
+        )
+
     override fun close() = server.close()
 
     private fun handle(request: RecordedRequest): MockResponse {
@@ -93,6 +121,22 @@ class NotesTestBackend : AutoCloseable {
         val method = request.method
 
         return when {
+            // Поиск разбирается раньше `/Notes/{id}`, иначе «search» будет
+            // принят за идентификатор заметки.
+            method == "GET" && path == "/Notes/search" -> {
+                val query = request.url.queryParameter("query").orEmpty()
+                searchQueries += query
+
+                if (query.length < MIN_QUERY_LENGTH) {
+                    MockResponse.Builder()
+                        .code(400)
+                        .body("Поисковый запрос должен быть не короче 3 символов.")
+                        .build()
+                } else {
+                    ok(json.encodeToString(searchResults))
+                }
+            }
+
             method == "GET" && path == "/Notes" -> ok(
                 json.encodeToString(notes.values.reversed().map(::toSummaryResponse)),
             )
@@ -138,6 +182,10 @@ class NotesTestBackend : AutoCloseable {
     }
 
     private fun RecordedRequest.bodyText(): String = body?.utf8().orEmpty()
+
+    private companion object {
+        const val MIN_QUERY_LENGTH = 3
+    }
 
     private fun ok(body: String) = MockResponse.Builder()
         .code(200)

@@ -31,6 +31,7 @@ fun NotesScreen(
 
     val list by viewModel.list.collectAsStateWithLifecycle()
     val editor by viewModel.editor.collectAsStateWithLifecycle()
+    val search by viewModel.search.collectAsStateWithLifecycle()
     val showList by viewModel.showList.collectAsStateWithLifecycle()
     val now by rememberNow()
 
@@ -50,18 +51,26 @@ fun NotesScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    BackHandler(enabled = !showList) { viewModel.backToList() }
+    // «Назад» разбирает по одному слою за раз: сначала выход из поиска,
+    // потом возврат от заметки к списку.
+    BackHandler(enabled = search.isActive) { viewModel.closeSearch() }
+    BackHandler(enabled = !showList && !search.isActive) { viewModel.backToList() }
 
     if (showList) {
         NotesListScreen(
             userName = userName,
             state = list,
+            search = search,
             openNoteId = editor.noteId,
             onOpen = viewModel::open,
             onCreate = viewModel::createNote,
             onRefresh = viewModel::refresh,
             onLoadMore = viewModel::loadNextPage,
             onLogout = onLogout,
+            onOpenSearch = viewModel::openSearch,
+            onCloseSearch = viewModel::closeSearch,
+            onSearchQueryChange = viewModel::onSearchQueryChange,
+            onOpenFromSearch = viewModel::openFromSearch,
             modifier = modifier,
             listState = listState,
         )

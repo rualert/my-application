@@ -9,6 +9,7 @@ import io.github.rualert.mynotesapp.AppContainer
 import io.github.rualert.mynotesapp.data.notes.NoteConflictException
 import io.github.rualert.mynotesapp.data.notes.NotesRepository
 import io.github.rualert.mynotesapp.domain.Note
+import io.github.rualert.mynotesapp.domain.NoteSearchResult
 import io.github.rualert.mynotesapp.domain.NoteSummary
 import io.github.rualert.mynotesapp.domain.titleForRequest
 import kotlinx.coroutines.Job
@@ -34,6 +35,19 @@ data class NotesListState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val endReached: Boolean = false,
+    val error: String? = null,
+)
+
+/**
+ * Поиск по заметкам. [hasSearched] отличает «ещё не искали» от «искали и не
+ * нашли»: иначе «Ничего не найдено» мелькало бы до первого ответа сервера.
+ */
+data class NotesSearchState(
+    val isActive: Boolean = false,
+    val query: String = "",
+    val results: List<NoteSearchResult> = emptyList(),
+    val isSearching: Boolean = false,
+    val hasSearched: Boolean = false,
     val error: String? = null,
 )
 
@@ -63,6 +77,7 @@ class NotesViewModel(
     private val repository: NotesRepository,
     private val clock: Clock = Clock.systemUTC(),
     private val autosaveDelayMillis: Long = AUTOSAVE_DELAY_MILLIS,
+    private val searchDebounceMillis: Long = SEARCH_DEBOUNCE_MILLIS,
 ) : ViewModel() {
 
     private val _list = MutableStateFlow(NotesListState())
@@ -70,6 +85,9 @@ class NotesViewModel(
 
     private val _editor = MutableStateFlow(NoteEditorState())
     val editor: StateFlow<NoteEditorState> = _editor.asStateFlow()
+
+    private val _search = MutableStateFlow(NotesSearchState())
+    val search: StateFlow<NotesSearchState> = _search.asStateFlow()
 
     /** Какая панель занимает экран: список или заметка. */
     private val _showList = MutableStateFlow(true)
@@ -82,6 +100,7 @@ class NotesViewModel(
 
     private var saveTimer: Job? = null
     private var loadJob: Job? = null
+    private var searchJob: Job? = null
     private val saveMutex = Mutex()
 
     init {
@@ -172,6 +191,78 @@ class NotesViewModel(
         }
 
         return notes.getOrNull(index + 1) ?: notes.getOrNull(index - 1)
+    }
+
+    // ------------------------------------------------------------------- поиск
+
+    fun openSearch() {
+        _search.value = NotesSearchState(isActive = true)
+    }
+
+    /** Уйти из поиска, ничего не выбрав: заметка остаётся прежней. */
+    fun closeSearch() {
+        searchJob?.cancel()
+        searchJob = null
+        _search.value = NotesSearchState()
+    }
+
+    fun onSearchQueryChange(query: String) {
+        searchJob?.cancel()
+
+        if (query.length < MIN_SEARCH_QUERY_LENGTH) {
+            // Сервер такой запрос отвергает, да и искать по одной букве
+            // бессмысленно: ничего не показываем и ничего не спрашиваем.
+            _search.update {
+                it.copy(
+                    query = query,
+                    results = emptyList(),
+                    isSearching = false,
+                    hasSearched = false,
+                    error = null,
+                )
+            }
+            return
+        }
+
+        _search.update { it.copy(query = query, error = null) }
+
+        searchJob = viewModelScope.launch {
+            // Запрос на каждое нажатие клавиши не нужен: набирают быстрее,
+            // чем отвечает сервер.
+            delay(searchDebounceMillis)
+
+            // `isSearching` означает именно «запрос в пути», а не «пользователь
+            // что-то печатает»: иначе «Идёт поиск…» мигало бы на каждой букве,
+            // да и проверить паузу было бы нечем.
+            _search.update { if (it.query == query) it.copy(isSearching = true) else it }
+
+            runCatching { repository.search(query) }
+                .onSuccess { results ->
+                    _search.update { state ->
+                        if (state.query != query) {
+                            // Пока искали, текст успели изменить — эта выдача уже не о том.
+                            state
+                        } else {
+                            state.copy(results = results, isSearching = false, hasSearched = true)
+                        }
+                    }
+                }
+                .onFailure { failure ->
+                    _search.update { state ->
+                        if (state.query != query) {
+                            state
+                        } else {
+                            state.copy(isSearching = false, error = failure.userMessage())
+                        }
+                    }
+                }
+        }
+    }
+
+    /** Выбор результата: заметка открывается, поиск закрывается — один шаг. */
+    fun openFromSearch(id: String) {
+        closeSearch()
+        open(id)
     }
 
     // ----------------------------------------------------------------- заметка
@@ -414,6 +505,8 @@ class NotesViewModel(
 
     companion object {
         const val AUTOSAVE_DELAY_MILLIS = 5_000L
+        const val SEARCH_DEBOUNCE_MILLIS = 300L
+        const val MIN_SEARCH_QUERY_LENGTH = 3
         private const val PAGE_SIZE = 50
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {

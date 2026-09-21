@@ -11,6 +11,11 @@
     <string name="retry">Повторить</string>
     <string name="logout">Выйти</string>
     <string name="untitled">Без названия</string>
+    <string name="search">Поиск по заметкам</string>
+    <string name="search_clear">Очистить запрос</string>
+    <string name="search_close">Выйти из поиска</string>
+    <string name="search_in_progress">Идёт поиск…</string>
+    <string name="search_nothing_found">Ничего не найдено</string>
     <string name="add_note">Добавить заметку</string>
     <string name="notes_empty">Заметок пока нет</string>
     <string name="note_not_selected">Выберите заметку в списке</string>
