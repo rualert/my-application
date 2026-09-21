@@ -34,6 +34,7 @@ class NotesSearchTest : NotesViewModelTestBase() {
         backend.setSearchResults(
             listOf(backend.searchResult(id, "Список покупок", "…не забыть про ", "покупки", " на выходные…")),
         )
+        Sut.refresh()
         awaitUntil("заметка приехала на устройство") { backend.localIdOf(id) != null }
         Sut.openSearch()
 
@@ -107,6 +108,10 @@ class NotesSearchTest : NotesViewModelTestBase() {
         // Arrange
         val id = backend.addNote("Список покупок", "не забыть про покупки")
         backend.setSearchResults(listOf(backend.searchResult(id, "Список покупок", "", "покупки", "")))
+        // Заметка заведена уже после запуска, и первое обновление могло
+        // пройти без неё: без явного обновления на медленном раннере CI она
+        // не приезжала никогда.
+        Sut.refresh()
         awaitUntil("заметка приехала на устройство") { backend.localIdOf(id) != null }
         Sut.openSearch()
         Sut.onSearchQueryChange("покупки")
