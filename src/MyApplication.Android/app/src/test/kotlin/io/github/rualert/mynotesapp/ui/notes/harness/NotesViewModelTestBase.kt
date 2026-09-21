@@ -1,7 +1,9 @@
 package io.github.rualert.mynotesapp.ui.notes.harness
 
+import androidx.lifecycle.viewModelScope
 import io.github.rualert.mynotesapp.ui.notes.NotesViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -11,6 +13,8 @@ import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Before
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * Общая обвязка сценариев вокруг [NotesViewModel].
@@ -20,6 +24,7 @@ import org.junit.Before
  * по-настоящему, на своих потоках. Поэтому ожидание ответа — это [awaitUntil],
  * а не прокрутка часов.
  */
+@RunWith(RobolectricTestRunner::class)
 abstract class NotesViewModelTestBase {
 
     /** Общие часы теста: их же использует `runTest`, поэтому время одно на всех. */
@@ -45,6 +50,9 @@ abstract class NotesViewModelTestBase {
 
     @After
     fun tearDownViewModel() {
+        // Порядок важен: ViewModel наблюдает за базой, поэтому её корутины
+        // нужно остановить раньше, чем база закроется.
+        Sut.viewModelScope.cancel()
         backend.close()
         Dispatchers.resetMain()
     }
@@ -78,6 +86,25 @@ abstract class NotesViewModelTestBase {
     protected suspend fun TestScope.openAndAwait(id: String) {
         Sut.open(id)
         awaitUntil("заметка $id открылась") { Sut.editor.value.noteId == id && !Sut.editor.value.isLoading }
+    }
+
+    /**
+     * Открывает заметку, которую сервер знает под [serverId].
+     *
+     * Интерфейс оперирует только локальными идентификаторами, поэтому сначала
+     * нужно дождаться, пока список приедет с сервера на устройство.
+     *
+     * @return локальный идентификатор открытой заметки.
+     */
+    protected suspend fun TestScope.openServerNote(serverId: String): String {
+        // Заметку на сервере обычно заводят уже после запуска приложения,
+        // когда список оно загрузить успело: просим обновление явно, иначе
+        // ждать её появления на устройстве можно бесконечно.
+        Sut.refresh()
+        awaitUntil("заметка $serverId приехала на устройство") { backend.localIdOf(serverId) != null }
+        val localId = backend.localIdOf(serverId)!!
+        openAndAwait(localId)
+        return localId
     }
 
     protected companion object {

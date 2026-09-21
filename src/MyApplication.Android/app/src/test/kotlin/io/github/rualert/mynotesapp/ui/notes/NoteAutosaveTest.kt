@@ -19,7 +19,7 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
     fun `правка сохраняется через пять секунд`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Текст")
-        openAndAwait(id)
+        openServerNote(id)
 
         // Act
         Sut.onTextChange("Другой текст")
@@ -34,7 +34,7 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
     fun `дальнейший набор не сдвигает таймер`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Текст")
-        openAndAwait(id)
+        openServerNote(id)
 
         // Act
         // Проверки делаются без единого приостановления теста: стоит ему
@@ -65,7 +65,7 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
     fun `без изменений запрос не отправляется`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Текст")
-        openAndAwait(id)
+        openServerNote(id)
 
         // Act
         Sut.backToList()
@@ -81,7 +81,7 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
     fun `возврат к списку сохраняет сразу`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Текст")
-        openAndAwait(id)
+        openServerNote(id)
         Sut.onTextChange("Успеть до ухода")
 
         // Act
@@ -96,7 +96,7 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
     fun `уход приложения в фон сохраняет сразу`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Текст")
-        openAndAwait(id)
+        openServerNote(id)
         Sut.onTitleChange("Новый заголовок")
 
         // Act
@@ -112,11 +112,11 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
         // Arrange
         val first = backend.addNote("Первая", "Текст первой")
         val second = backend.addNote("Вторая", "Текст второй")
-        openAndAwait(first)
+        openServerNote(first)
         Sut.onTextChange("Правка первой")
 
         // Act
-        openAndAwait(second)
+        openServerNote(second)
         awaitUntil("сохранение первой дошло до сервера") { backend.updates.isNotEmpty() }
 
         // Assert
@@ -128,7 +128,7 @@ class NoteAutosaveTest : NotesViewModelTestBase() {
     fun `пустой заголовок уходит как отсутствие заголовка`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Текст")
-        openAndAwait(id)
+        openServerNote(id)
 
         // Act
         Sut.onTitleChange("   ")

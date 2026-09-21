@@ -17,7 +17,7 @@ class NoteConflictTest : NotesViewModelTestBase() {
     fun `конфликт не затирает чужие правки и сохраняет напечатанное`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Исходный текст")
-        openAndAwait(id)
+        openServerNote(id)
         backend.editElsewhere(id, "Текст из другого места")
 
         // Act
@@ -34,7 +34,7 @@ class NoteConflictTest : NotesViewModelTestBase() {
     fun `после конфликта автосохранение останавливается`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Исходный текст")
-        openAndAwait(id)
+        openServerNote(id)
         backend.editElsewhere(id, "Текст из другого места")
         Sut.onTextChange("Моя правка")
         Sut.onStopped()
@@ -58,7 +58,7 @@ class NoteConflictTest : NotesViewModelTestBase() {
     fun `загрузить актуальную заменяет черновик серверной версией`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Исходный текст")
-        openAndAwait(id)
+        openServerNote(id)
         backend.editElsewhere(id, "Текст из другого места")
         Sut.onTextChange("Моя правка")
         Sut.onStopped()
@@ -78,7 +78,7 @@ class NoteConflictTest : NotesViewModelTestBase() {
     fun `перезаписать моей сохраняет черновик поверх чужих правок`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Исходный текст")
-        openAndAwait(id)
+        openServerNote(id)
         backend.editElsewhere(id, "Текст из другого места")
         Sut.onTextChange("Моя правка")
         Sut.onStopped()
@@ -97,7 +97,7 @@ class NoteConflictTest : NotesViewModelTestBase() {
     fun `после разрешения конфликта автосохранение снова работает`() = runTest(dispatcher) {
         // Arrange
         val id = backend.addNote("Заголовок", "Исходный текст")
-        openAndAwait(id)
+        openServerNote(id)
         backend.editElsewhere(id, "Текст из другого места")
         Sut.onTextChange("Моя правка")
         Sut.onStopped()

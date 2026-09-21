@@ -8,7 +8,11 @@ import io.github.rualert.mynotesapp.data.auth.AuthRepository
 import io.github.rualert.mynotesapp.data.auth.CookieStorage
 import io.github.rualert.mynotesapp.data.auth.SessionCookieJar
 import io.github.rualert.mynotesapp.data.auth.TokenStore
+import io.github.rualert.mynotesapp.data.local.NotesDatabase
 import io.github.rualert.mynotesapp.data.notes.NotesRepository
+import io.github.rualert.mynotesapp.data.notes.NotesSyncer
+import io.github.rualert.mynotesapp.data.notes.sync.ConflictNotifier
+import io.github.rualert.mynotesapp.data.notes.sync.SyncWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +32,8 @@ import java.time.Duration
  * обработку аннотаций ради десятка объектов.
  */
 class AppContainer(context: Context) {
+
+    private val applicationContext = context.applicationContext
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -75,5 +81,18 @@ class AppContainer(context: Context) {
 
     val authRepository: AuthRepository by lazy { AuthRepository(authApi, tokens, cookieJar) }
 
-    val notesRepository: NotesRepository by lazy { NotesRepository(notesApi) }
+    private val database: NotesDatabase by lazy { NotesDatabase.create(applicationContext) }
+
+    val notesSyncer: NotesSyncer by lazy { NotesSyncer(notesApi, database.notesDao()) }
+
+    val conflictNotifier: ConflictNotifier by lazy { ConflictNotifier(applicationContext) }
+
+    val notesRepository: NotesRepository by lazy {
+        NotesRepository(
+            api = notesApi,
+            dao = database.notesDao(),
+            syncer = notesSyncer,
+            scheduler = SyncWorker.scheduler(applicationContext),
+        )
+    }
 }

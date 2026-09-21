@@ -24,7 +24,7 @@ class NotesListTest : NotesViewModelTestBase() {
         assertEquals(EditorFocus.Title, Sut.editor.value.pendingFocus)
         assertFalse("Новая заметка сразу показывается на экране", Sut.showList.value)
         // Заголовка у новой заметки нет — он появится, когда его напечатают.
-        assertNull(backend.titleOf(Sut.editor.value.noteId!!))
+        assertNull(Sut.editor.value.title.takeIf { it.isNotEmpty() })
     }
 
     @Test
@@ -34,17 +34,16 @@ class NotesListTest : NotesViewModelTestBase() {
         val newer = backend.addNote("Новая", "Текст новой")
         Sut.loadFirstPage()
         awaitUntil("список загрузился") { Sut.list.value.notes.size == 2 }
-        openAndAwait(newer)
+        val newerLocalId = openServerNote(newer)
+        val olderLocalId = backend.localIdOf(older)!!
 
         // Act
-        // Ждём того, что увидел клиент: сервер убирает заметку у себя раньше,
-        // чем ответ доходит до приложения.
-        Sut.deleteNote(newer)
-        awaitUntil("открылась соседняя заметка") { Sut.editor.value.noteId == older }
+        Sut.deleteNote(newerLocalId)
+        awaitUntil("открылась соседняя заметка") { Sut.editor.value.noteId == olderLocalId }
 
         // Assert
         assertTrue("После удаления приложение возвращает к списку", Sut.showList.value)
-        assertEquals(listOf(older), Sut.list.value.notes.map { it.id })
+        assertEquals(listOf(olderLocalId), Sut.list.value.notes.map { it.id })
     }
 
     @Test
@@ -53,11 +52,12 @@ class NotesListTest : NotesViewModelTestBase() {
         val only = backend.addNote("Единственная", "Текст")
         Sut.loadFirstPage()
         awaitUntil("список загрузился") { Sut.list.value.notes.size == 1 }
-        openAndAwait(only)
+        val localId = openServerNote(only)
 
         // Act
-        Sut.deleteNote(only)
+        Sut.deleteNote(localId)
         awaitUntil("список опустел") { Sut.list.value.notes.isEmpty() }
+        awaitUntil("удаление уехало на сервер") { !backend.contains(only) }
 
         // Assert
         assertNull(Sut.editor.value.noteId)
@@ -70,14 +70,15 @@ class NotesListTest : NotesViewModelTestBase() {
         val id = backend.addNote("Старый заголовок", "Текст")
         Sut.loadFirstPage()
         awaitUntil("список загрузился") { Sut.list.value.notes.isNotEmpty() }
-        openAndAwait(id)
+        val localId = openServerNote(id)
 
         // Act
         Sut.onTitleChange("Новый заголовок")
         Sut.onStopped()
         awaitUntil("заголовок обновился в списке") {
-            Sut.list.value.notes.first { it.id == id }.title == "Новый заголовок"
+            Sut.list.value.notes.first { it.id == localId }.title == "Новый заголовок"
         }
+        awaitUntil("правка уехала на сервер") { backend.titleOf(id) == "Новый заголовок" }
 
         // Assert
         assertEquals("Новый заголовок", backend.titleOf(id))

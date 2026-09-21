@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // Нужен Room: реализации DAO он генерирует при сборке.
+    alias(libs.plugins.ksp)
 }
 
 /**
@@ -68,6 +70,11 @@ android {
         compose = true
         buildConfig = true
     }
+
+    // Robolectric поднимает настоящий Android-рантайм, и ресурсы ему нужны.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 dependencies {
@@ -96,6 +103,12 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
 
+    // Хранилище заметок на устройстве и отправка изменений в фоне.
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.work.runtime)
+
     // Режим просмотра отрисовывает текст заметки как Markdown — ровно как
     // react-markdown в веб-интерфейсе.
     implementation(libs.markdown.renderer.m3)
@@ -107,4 +120,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    // Хранилище на устройстве — настоящий SQLite, подменять его нечем:
+    // тестам, которым нужна база, обычной JVM мало.
+    testImplementation(libs.robolectric)
 }

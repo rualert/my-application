@@ -6,8 +6,20 @@ import io.github.rualert.mynotesapp.data.api.NoteSearchResultResponse
 import io.github.rualert.mynotesapp.data.api.NoteSummaryResponse
 import io.github.rualert.mynotesapp.data.api.NotesApi
 import io.github.rualert.mynotesapp.data.api.UpdateNoteRequest
+import androidx.room.Room
+import io.github.rualert.mynotesapp.data.local.NotesDatabase
 import io.github.rualert.mynotesapp.data.notes.NotesRepository
+import io.github.rualert.mynotesapp.data.notes.NotesSyncer
+import io.github.rualert.mynotesapp.data.notes.SyncScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import org.robolectric.RuntimeEnvironment
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -17,6 +29,7 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.create
+import java.io.IOException
 import java.time.Instant
 import java.util.UUID
 
@@ -25,8 +38,13 @@ import java.util.UUID
  * правило версий, поэтому `PUT` с устаревшей версией получает `409` — так же,
  * как от настоящего сервера.
  *
- * Подменяется только сеть: репозиторий, Retrofit и разбор ответов в тестах
- * работают настоящие (см. CLAUDE.md — то же правило, что у MSW в вебе).
+ * Подменяется только сеть: репозиторий, Retrofit, разбор ответов и хранилище
+ * на устройстве в тестах настоящие (см. CLAUDE.md — то же правило, что у MSW
+ * в вебе). Хранилище — Room в памяти, поэтому тесты идут под Robolectric.
+ *
+ * Отправка здесь происходит сразу, без WorkManager: в тестах нужна
+ * предсказуемость, а не «когда система сочтёт нужным». Случай «сети нет»
+ * воспроизводится через [goOffline].
  */
 class NotesTestBackend : AutoCloseable {
 
@@ -54,6 +72,19 @@ class NotesTestBackend : AutoCloseable {
     private var searchResults: List<NoteSearchResultResponse> = emptyList()
 
     val repository: NotesRepository
+    val syncer: NotesSyncer
+
+    private val database = Room
+        .inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), NotesDatabase::class.java)
+        .allowMainThreadQueries()
+        .build()
+
+    private val dao = database.notesDao()
+    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Пока true, любой запрос к серверу обрывается, как без сети. */
+    @Volatile
+    private var offline = false
 
     init {
         server.dispatcher = object : Dispatcher() {
@@ -61,14 +92,54 @@ class NotesTestBackend : AutoCloseable {
         }
         server.start()
 
+        // Отсутствие сети имитируется на стороне клиента: обрыв сокета в
+        // MockWebServer Retrofit принял за успешный пустой ответ, и «удаление
+        // без сети» молча считалось выполненным.
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                if (offline) throw IOException("Сети нет") else chain.proceed(chain.request())
+            }
+            .build()
+
         val retrofit = Retrofit.Builder()
             .baseUrl(server.url("/"))
-            .client(OkHttpClient())
+            .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
 
-        repository = NotesRepository(retrofit.create<NotesApi>())
+        val api = retrofit.create<NotesApi>()
+        syncer = NotesSyncer(api, dao)
+        repository = NotesRepository(
+            api = api,
+            dao = dao,
+            syncer = syncer,
+            // Связь есть — отправляем сразу; в приложении то же самое делает
+            // WorkManager, только дожидаясь сети. Ошибку отправки глушим так
+            // же, как Worker: она не должна всплывать в чужом тесте.
+            scheduler = SyncScheduler { syncScope.launch { runCatching { syncer.push() } } },
+        )
     }
+
+    /** Сеть пропала: запросы обрываются, как в метро. */
+    fun goOffline() {
+        offline = true
+    }
+
+    /** Связь вернулась. Отправить накопленное можно через [syncNow]. */
+    fun goOnline() {
+        offline = false
+    }
+
+    /** Отправляет очередь и возвращает заметки, отклонённые из-за конфликта. */
+    fun syncNow() = runBlocking { syncer.push() }
+
+    /** Локальный идентификатор заметки, известной серверу под [serverId]. */
+    fun localIdOf(serverId: String): String? =
+        runBlocking { dao.byServerId(serverId)?.localId }
+
+    /** Ждёт ли что-то отправки. */
+    fun pendingCount(): Int =
+        runBlocking { dao.allNotes().count { it.pendingOperation.name != "None" } }
 
     fun addNote(title: String?, text: String): String {
         val id = UUID.randomUUID().toString()
@@ -93,6 +164,9 @@ class NotesTestBackend : AutoCloseable {
 
     fun contains(id: String): Boolean = notes.containsKey(id)
 
+    /** Заголовки всех заметок, которые сейчас есть на сервере. */
+    fun allTitles(): List<String?> = notes.values.map { it.title }
+
     /**
      * Что сервер ответит на поиск. Ранжирование и разметку совпадений делает
      * настоящий сервер (Postgres с pg_trgm), воспроизводить их здесь
@@ -114,7 +188,16 @@ class NotesTestBackend : AutoCloseable {
             ),
         )
 
-    override fun close() = server.close()
+    override fun close() {
+        // Сначала останавливаем отправку: не остановив, мы закрываем базу из-под
+        // работающей корутины, и следующий тест падает на чужом «connection is
+        // closed» — ошибка всплывает не там, где произошла.
+        // Отмена асинхронна, поэтому именно дожидаемся: иначе запрос успеет
+        // наткнуться на закрытую базу уже в следующем тесте.
+        runBlocking { syncScope.coroutineContext.job.cancelAndJoin() }
+        database.close()
+        server.close()
+    }
 
     private fun handle(request: RecordedRequest): MockResponse {
         val path = request.url.encodedPath

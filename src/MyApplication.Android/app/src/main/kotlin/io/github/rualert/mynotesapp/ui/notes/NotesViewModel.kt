@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.rualert.mynotesapp.AppContainer
-import io.github.rualert.mynotesapp.data.notes.NoteConflictException
 import io.github.rualert.mynotesapp.data.notes.NotesRepository
 import io.github.rualert.mynotesapp.domain.Note
 import io.github.rualert.mynotesapp.domain.NoteSearchResult
@@ -60,6 +59,8 @@ data class NoteEditorState(
     val mode: EditorMode = EditorMode.Edit,
     val isSaving: Boolean = false,
     val lastSavedAt: Instant? = null,
+    /** Правка лежит на устройстве и ждёт отправки. */
+    val isPending: Boolean = false,
     val hasConflict: Boolean = false,
     val pendingFocus: EditorFocus? = null,
 )
@@ -104,19 +105,50 @@ class NotesViewModel(
     private val saveMutex = Mutex()
 
     init {
-        loadFirstPage()
+        // Список берётся с устройства и обновляется сам: и после правки, и
+        // после того, как отправка в фоне принесла серверные изменения.
+        viewModelScope.launch {
+            repository.observeNotes().collect { notes ->
+                _list.update { it.copy(notes = notes, isLoading = false) }
+
+                // Отправка идёт в фоне, и статус открытой заметки меняется без
+                // участия экрана: «Не отправлено» должно гаснуть само.
+                _editor.update { state ->
+                    val openNote = notes.firstOrNull { it.id == state.noteId }
+                    if (openNote == null) state else state.copy(isPending = openNote.isPending)
+                }
+            }
+        }
+
+        // Открытую заметку сервер мог изменить, пока её правили офлайн: сюда
+        // приходит признак конфликта, выставленный отправкой в фоне.
+        viewModelScope.launch {
+            repository.observeConflicts().collect { conflicted ->
+                _editor.update { state ->
+                    if (state.noteId != null && state.noteId in conflicted) {
+                        state.copy(hasConflict = true)
+                    } else {
+                        state
+                    }
+                }
+            }
+        }
+
+        refresh()
     }
 
     // ------------------------------------------------------------------ список
 
-    fun loadFirstPage() {
-        _list.update { it.copy(isLoading = true, error = null) }
-        viewModelScope.launch { loadPage(from = 0, replace = true) }
-    }
+    fun loadFirstPage() = refresh()
 
     fun refresh() {
         _list.update { it.copy(isRefreshing = true, error = null) }
-        viewModelScope.launch { loadPage(from = 0, replace = true) }
+        viewModelScope.launch {
+            // Неудача — это обычный офлайн, а не ошибка: на экране остаётся
+            // то, что лежит на устройстве.
+            repository.refresh()
+            _list.update { it.copy(isRefreshing = false, isLoading = false) }
+        }
     }
 
     fun loadNextPage() {
@@ -125,60 +157,38 @@ class NotesViewModel(
             return
         }
 
-        viewModelScope.launch { loadPage(from = state.notes.size, replace = false) }
-    }
-
-    private suspend fun loadPage(from: Int, replace: Boolean) {
-        runCatching { repository.list(from, PAGE_SIZE) }
-            .onSuccess { page ->
-                _list.update { state ->
-                    state.copy(
-                        notes = if (replace) page else state.notes + page,
-                        isLoading = false,
-                        isRefreshing = false,
-                        endReached = page.size < PAGE_SIZE,
-                        error = null,
-                    )
-                }
-            }
-            .onFailure { failure ->
-                _list.update { it.copy(isLoading = false, isRefreshing = false, error = failure.userMessage()) }
-            }
+        viewModelScope.launch {
+            val loaded = state.notes.size
+            repository.loadMore(from = loaded)
+            _list.update { it.copy(endReached = _list.value.notes.size == loaded) }
+        }
     }
 
     fun createNote() {
         flushSave()
         viewModelScope.launch {
-            runCatching { repository.create(title = null, text = "") }
-                .onSuccess { note ->
-                    _list.update { it.copy(notes = listOf(note.toSummary()) + it.notes) }
-                    // Заметка только что получена целиком — перечитывать её незачем.
-                    showNote(note, focus = EditorFocus.Title)
-                    _showList.value = false
-                }
-                .onFailure { failure -> _list.update { it.copy(error = failure.userMessage()) } }
+            // Создание не ходит на сервер: заметка появляется на устройстве
+            // сразу и уезжает, когда будет связь.
+            val note = repository.createNote()
+            showNote(note, focus = EditorFocus.Title)
+            _showList.value = false
         }
     }
 
     fun deleteNote(id: String) {
         viewModelScope.launch {
-            runCatching { repository.delete(id) }
-                .onSuccess {
-                    val remaining = _list.value.notes.filterNot { it.id == id }
-                    val neighbour = neighbourOf(id)
-                    _list.update { it.copy(notes = remaining) }
+            val neighbour = neighbourOf(id)
+            repository.deleteNote(id)
 
-                    if (_editor.value.noteId == id) {
-                        // Правки удалённой заметки сохранять некуда.
-                        cancelPendingSave()
-                        _editor.value = NoteEditorState(mode = _editor.value.mode)
-                        neighbour?.let { open(it.id) }
-                        // Удаление всегда возвращает к списку, даже если
-                        // соседняя заметка открылась в области редактирования.
-                        _showList.value = true
-                    }
-                }
-                .onFailure { failure -> _list.update { it.copy(error = failure.userMessage()) } }
+            if (_editor.value.noteId == id) {
+                // Правки удалённой заметки сохранять некуда.
+                cancelPendingSave()
+                _editor.value = NoteEditorState(mode = _editor.value.mode)
+                neighbour?.let { open(it.id) }
+                // Удаление всегда возвращает к списку, даже если соседняя
+                // заметка открылась в области редактирования.
+                _showList.value = true
+            }
         }
     }
 
@@ -283,14 +293,36 @@ class NotesViewModel(
 
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            runCatching { repository.byId(id) }
-                .onSuccess { note -> if (_editor.value.noteId == id) showNote(note, focus = null) }
-                .onFailure { failure ->
-                    if (_editor.value.noteId == id) {
-                        _editor.update { it.copy(isLoading = false, loadError = failure.userMessage()) }
-                    }
-                }
+            val stored = repository.noteById(id)
+
+            // Список приходит без текстов, поэтому у заметки, которую ещё ни
+            // разу не открывали, текста на устройстве нет. Показывать пустоту
+            // вместо него нельзя — она неотличима от пустой заметки.
+            val needsText = stored != null && stored.text.isEmpty() && stored.version == 0
+            if (stored != null && !needsText) {
+                if (_editor.value.noteId == id) showNote(stored, focus = null)
+            }
+
+            if (needsText) {
+                repository.ensureText(id)
+            }
+
+            repository.noteById(id)?.let { note ->
+                if (_editor.value.noteId == id && !isDirty()) showNote(note, focus = null)
+            }
+
+            if (_editor.value.noteId == id && _editor.value.isLoading) {
+                // Текст догрузить не вышло (скорее всего нет сети) — показываем
+                // то, что есть, а не бесконечную загрузку.
+                _editor.update { it.copy(isLoading = false) }
+            }
         }
+    }
+
+    /** Есть ли в редакторе правки, которых нет в сохранённой копии. */
+    private fun isDirty(): Boolean {
+        val state = _editor.value
+        return state.title != savedTitle || state.text != savedText
     }
 
     fun backToList() {
@@ -375,81 +407,55 @@ class NotesViewModel(
             return null
         }
 
-        return PendingSave(id, state.title, state.text, version)
+        return PendingSave(id, state.title, state.text)
     }
 
+    /**
+     * Сохранение на устройстве не может не удаться: сеть на него не влияет.
+     * Отправкой занимается фоновая синхронизация, поэтому ни ошибок, ни
+     * конфликта здесь не бывает — конфликт придёт позже, из [observeConflicts].
+     */
     private suspend fun perform(request: PendingSave) {
         _editor.update { if (it.noteId == request.id) it.copy(isSaving = true) else it }
 
-        runCatching {
-            repository.update(request.id, titleForRequest(request.title), request.text, request.version)
+        repository.saveDraft(request.id, titleForRequest(request.title), request.text)
+
+        if (_editor.value.noteId == request.id) {
+            savedTitle = request.title
+            savedText = request.text
+            _editor.update { it.copy(isSaving = false, lastSavedAt = clock.instant()) }
         }
-            .onSuccess { updated -> onSaved(request, updated) }
-            .onFailure { failure -> onSaveFailed(request.id, failure) }
-
-        _editor.update { if (it.noteId == request.id) it.copy(isSaving = false) else it }
-    }
-
-    private fun onSaved(request: PendingSave, updated: Note) {
-        patchSummary(updated)
-
-        if (_editor.value.noteId != request.id) {
-            // Пока запрос летел, открыли другую заметку: её собственные
-            // «сохранено» и версия к этому ответу отношения не имеют.
-            return
-        }
-
-        savedTitle = request.title
-        savedText = request.text
-        version = updated.version
-        _editor.update { it.copy(lastSavedAt = clock.instant()) }
     }
 
     private data class PendingSave(
         val id: String,
         val title: String,
         val text: String,
-        val version: Int,
     )
 
-    private fun onSaveFailed(id: String, failure: Throwable) {
-        if (failure is NoteConflictException) {
-            // Повторять тот же отклонённый запрос бессмысленно: пока
-            // пользователь не решит, чьи правки оставить, автосохранение стоит.
-            _editor.update { if (it.noteId == id) it.copy(hasConflict = true) else it }
-            return
-        }
-
-        // Сервер недоступен: черновик остаётся несохранённым, и попытка
-        // повторится — заметка сохранится сама, когда связь вернётся.
-        scheduleSave()
-    }
-
+    /** Конфликт: отказаться от своих правок в пользу серверной версии. */
     fun reloadFromServer() {
         val id = _editor.value.noteId ?: return
         viewModelScope.launch {
-            runCatching { repository.byId(id) }
-                .onSuccess { note -> if (_editor.value.noteId == id) showNote(note, focus = null) }
+            repository.reloadFromServer(id)
+                .onSuccess {
+                    repository.noteById(id)?.let { note ->
+                        if (_editor.value.noteId == id) showNote(note, focus = null)
+                    }
+                }
                 .onFailure { failure -> _editor.update { it.copy(loadError = failure.userMessage()) } }
         }
     }
 
+    /** Конфликт: оставить своё — правки снова встают в очередь на отправку. */
     fun overwriteWithMine() {
         val id = _editor.value.noteId ?: return
         viewModelScope.launch {
-            // Актуальная версия нужна только для того, чтобы сервер принял
-            // запись: сам текст берётся из черновика пользователя.
-            runCatching { repository.byId(id) }
-                .onSuccess { note ->
-                    if (_editor.value.noteId != id) {
-                        return@onSuccess
+            repository.overwriteWithMine(id)
+                .onSuccess {
+                    if (_editor.value.noteId == id) {
+                        _editor.update { it.copy(hasConflict = false) }
                     }
-
-                    savedTitle = note.title.orEmpty()
-                    savedText = note.text
-                    version = note.version
-                    _editor.update { it.copy(hasConflict = false) }
-                    saveNow()
                 }
                 .onFailure { failure -> _editor.update { it.copy(loadError = failure.userMessage()) } }
         }

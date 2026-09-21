@@ -34,6 +34,7 @@ class NotesSearchTest : NotesViewModelTestBase() {
         backend.setSearchResults(
             listOf(backend.searchResult(id, "Список покупок", "…не забыть про ", "покупки", " на выходные…")),
         )
+        awaitUntil("заметка приехала на устройство") { backend.localIdOf(id) != null }
         Sut.openSearch()
 
         // Act
@@ -42,7 +43,8 @@ class NotesSearchTest : NotesViewModelTestBase() {
 
         // Assert
         val result = Sut.search.value.results.single()
-        assertEquals(id, result.id)
+        // Сервер отвечает своими идентификаторами, наружу уходят локальные.
+        assertEquals(backend.localIdOf(id), result.id)
         assertEquals("Список покупок", result.title.joinText())
         // Разметку считает сервер: заметку, найденную по опечатке, клиент сам
         // подсветить бы не смог.
@@ -99,13 +101,17 @@ class NotesSearchTest : NotesViewModelTestBase() {
         // Arrange
         val id = backend.addNote("Список покупок", "не забыть про покупки")
         backend.setSearchResults(listOf(backend.searchResult(id, "Список покупок", "", "покупки", "")))
+        awaitUntil("заметка приехала на устройство") { backend.localIdOf(id) != null }
         Sut.openSearch()
         Sut.onSearchQueryChange("покупки")
         awaitUntil("пришли результаты") { Sut.search.value.results.isNotEmpty() }
 
         // Act
-        Sut.openFromSearch(id)
-        awaitUntil("заметка открылась") { Sut.editor.value.noteId == id && !Sut.editor.value.isLoading }
+        // В выдаче приходит серверный идентификатор, а наружу репозиторий
+        // отдаёт локальный — интерфейс знает заметки только по нему.
+        val localId = backend.localIdOf(id)!!
+        Sut.openFromSearch(Sut.search.value.results.single().id)
+        awaitUntil("заметка открылась") { Sut.editor.value.noteId == localId && !Sut.editor.value.isLoading }
 
         // Assert
         assertFalse("Выбор в один шаг: поиск закрывается сразу", Sut.search.value.isActive)

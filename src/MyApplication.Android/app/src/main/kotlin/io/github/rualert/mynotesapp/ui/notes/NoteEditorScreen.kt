@@ -126,7 +126,12 @@ fun NoteEditorScreen(
         },
         bottomBar = {
             Text(
-                text = saveStatusText(state.isSaving, state.lastSavedAt, now),
+                text = saveStatusText(
+                    isSaving = state.isSaving,
+                    lastSavedAt = state.lastSavedAt,
+                    now = now,
+                    isPending = state.isPending,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 // Статус сохранения виден всегда и не прячется за системной

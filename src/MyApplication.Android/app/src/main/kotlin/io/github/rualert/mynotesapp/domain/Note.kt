@@ -20,6 +20,12 @@ data class Note(
     val version: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
+    /** Правка сохранена на устройстве, но ещё не ушла на сервер. */
+    val isPending: Boolean = false,
+    /** Сервер отклонил отправку: заметку изменили в другом месте. */
+    val hasConflict: Boolean = false,
+    /** Когда правка легла на устройство. */
+    val savedLocallyAt: Instant? = null,
 )
 
 /** Краткие сведения для списка: без текста и без версии — править оттуда нечего. */
@@ -28,6 +34,8 @@ data class NoteSummary(
     val title: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val isPending: Boolean = false,
+    val hasConflict: Boolean = false,
 )
 
 /**

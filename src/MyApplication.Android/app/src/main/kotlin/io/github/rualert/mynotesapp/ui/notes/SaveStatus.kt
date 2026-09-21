@@ -19,9 +19,16 @@ fun saveStatusText(
     lastSavedAt: Instant?,
     now: Instant,
     zone: ZoneId = ZoneId.systemDefault(),
+    isPending: Boolean = false,
 ): String {
     if (isSaving) {
         return "Сохраняется…"
+    }
+
+    // На устройстве правка уже сохранена, но на сервере её ещё нет — время
+    // сохранения показывать рано: с другого устройства заметка выглядит старой.
+    if (isPending) {
+        return "Не отправлено"
     }
 
     if (lastSavedAt == null) {

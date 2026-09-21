@@ -27,6 +27,9 @@
     <string name="switch_to_view">Режим просмотра</string>
     <string name="switch_to_edit">Режим редактирования</string>
     <string name="note_title_hint">Без названия</string>
+    <string name="sync_channel_name">Синхронизация</string>
+    <string name="not_sent">Не отправлено</string>
+    <string name="search_offline">Поиск недоступен без сети</string>
     <string name="conflict_title">Заметка изменена в другом месте</string>
     <string name="conflict_reload">Загрузить актуальную</string>
     <string name="conflict_overwrite">Перезаписать моей</string>
