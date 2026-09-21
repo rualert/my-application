@@ -38,8 +38,12 @@ android {
         applicationId = "io.github.rualert.mynotesapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // Версия тоже приходит настройкой сборки: релизный workflow берёт имя
+        // версии из тега, а versionCode — из номера запуска, чтобы каждая
+        // следующая сборка ставилась поверх предыдущей (Android не даёт
+        // обновить APK меньшим versionCode).
+        versionCode = buildSetting("myNotesApp.versionCode").toIntOrNull() ?: 1
+        versionName = buildSetting("myNotesApp.versionName").ifEmpty { "1.0" }
 
         buildConfigField("String", "API_BASE_URL", "\"${buildSetting("myNotesApp.apiBaseUrl")}\"")
         buildConfigField(
@@ -49,8 +53,32 @@ android {
         )
     }
 
+    // Релизный ключ задаётся теми же настройками сборки, что и всё остальное:
+    // в CI — секретами репозитория (путь указывает на файл, восстановленный из
+    // ANDROID_KEYSTORE_BASE64), локально — через local.properties. Если ключа
+    // нет, конфигурация не создаётся вовсе и assembleRelease даёт неподписанный
+    // APK: собрать релиз без ключа можно, а раздать — нет.
+    //
+    // Отпечаток SHA-1 этого ключа должен быть зарегистрирован в Android-клиенте
+    // OAuth проекта Google Cloud, иначе системный диалог входа откажется выдать
+    // токен (см. README).
+    val releaseKeystore = buildSetting("myNotesApp.releaseKeystore")
+
+    signingConfigs {
+        if (releaseKeystore.isNotEmpty()) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = buildSetting("myNotesApp.releaseKeystorePassword")
+                keyAlias = buildSetting("myNotesApp.releaseKeyAlias")
+                keyPassword = buildSetting("myNotesApp.releaseKeyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
+
             // Сжатие и обфускация пока выключены: у Retrofit и kotlinx.serialization
             // свои keep-правила, и включать R8 стоит вместе с релизной подписью,
             // проверив собранный APK на устройстве, а не вслепую.

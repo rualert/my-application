@@ -26,6 +26,8 @@
 |---|---|
 | `myNotesApp.apiBaseUrl` | Адрес API. По умолчанию — развёрнутый экземпляр в Railway |
 | `myNotesApp.googleServerClientId` | Идентификатор **веб-клиента** Google OAuth — тот же, что у веб-интерфейса (`VITE_GOOGLE_CLIENT_ID`). В git не хранится |
+| `myNotesApp.versionName` / `myNotesApp.versionCode` | Версия приложения. Локально — `1.0`/`1`, при выпуске подставляются из тега и номера запуска workflow |
+| `myNotesApp.releaseKeystore` и три пароля к нему | Ключ релизной подписи, см. «[Выпуск APK](#выпуск-apk)». Нужен только для `assembleRelease` |
 
 Пример `local.properties`:
 
@@ -62,6 +64,65 @@ Google Cloud отдельно.
 
 APK ставится на телефон вручную, из неизвестных источников: в магазине
 приложение не публикуется.
+
+## Выпуск APK
+
+Готовый APK лежит на [странице релизов](https://github.com/rualert/my-application/releases):
+скачать файл прямо на телефон, открыть, разрешить установку из неизвестного
+источника. Ссылка открывается без входа в GitHub — артефакт сборки из workflow
+`android` для этого не годится (отдаётся zip-архивом и только авторизованным,
+а главное — подписан случайным отладочным ключом, с которым вход через Google
+не работает).
+
+Выпуск делает workflow `android-release` по пушу тега:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Он прогоняет тесты, собирает подписанный релизный APK (`versionName` — из тега,
+`versionCode` — из номера запуска, чтобы новая сборка вставала поверх прежней)
+и создаёт релиз с этим файлом.
+
+### Разовая настройка
+
+1. Создать релизный keystore и **сохранить его** — потерять его значит
+   потерять возможность обновлять уже установленное приложение:
+
+   ```powershell
+   keytool -genkeypair -v -keystore release.keystore -alias mynotesapp `
+     -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+2. Добавить его отпечаток SHA-1 в OAuth-клиент типа Android проекта Google
+   Cloud (см. «[Вход через Google](#вход-через-google)») — иначе в выпущенном
+   APK вход не заработает. Отпечаток:
+
+   ```powershell
+   keytool -list -v -alias mynotesapp -keystore release.keystore
+   ```
+
+3. Завести секреты репозитория (**Settings → Secrets and variables → Actions**),
+   кроме уже существующего `GOOGLE_CLIENT_ID`:
+
+   | Секрет | Значение |
+   |---|---|
+   | `ANDROID_KEYSTORE_BASE64` | Сам keystore в base64: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("release.keystore")) \| Set-Clipboard` |
+   | `ANDROID_KEYSTORE_PASSWORD` | Пароль хранилища |
+   | `ANDROID_KEY_ALIAS` | Псевдоним ключа (`mynotesapp` в примере выше) |
+   | `ANDROID_KEY_PASSWORD` | Пароль ключа |
+
+Собрать подписанный релиз локально можно теми же настройками:
+
+```powershell
+.\gradlew.bat assembleRelease -PmyNotesApp.releaseKeystore=<путь>\release.keystore `
+  -PmyNotesApp.releaseKeystorePassword=<пароль> `
+  -PmyNotesApp.releaseKeyAlias=mynotesapp -PmyNotesApp.releaseKeyPassword=<пароль>
+```
+
+Без этих настроек `assembleRelease` тоже проходит, но даёт неподписанный APK
+(`app-release-unsigned.apk`), который не установится.
 
 ## Эмулятор
 
