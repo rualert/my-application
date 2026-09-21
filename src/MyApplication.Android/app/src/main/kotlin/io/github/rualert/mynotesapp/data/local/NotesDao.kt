@@ -59,6 +59,40 @@ interface NotesDao {
     suspend fun deleteAll()
 
     /**
+     * Кладёт текст заметки, дочитанный с сервера, — но только если строка всё
+     * ещё та же.
+     *
+     * Запрос за текстом идёт по сети, и за это время заметку успевают удалить
+     * или поправить. Записывать по прочитанной до запроса копии нельзя: удалённая
+     * заметка так воскресает (`upsert` создаёт строку заново), а сделанная
+     * тем временем правка затирается серверной — вместе с пометкой, что её
+     * надо отправить. Поэтому строка перечитывается здесь же, в транзакции.
+     */
+    @Transaction
+    suspend fun applyFetchedNote(
+        localId: String,
+        title: String?,
+        text: String,
+        version: Int,
+        updatedAt: Long,
+    ) {
+        val current = byLocalId(localId) ?: return
+
+        if (current.pendingOperation != PendingOperation.None || current.hasConflict) {
+            return
+        }
+
+        upsert(
+            current.copy(
+                title = title,
+                text = text,
+                version = version,
+                updatedAt = updatedAt,
+            ),
+        )
+    }
+
+    /**
      * Принимает список с сервера, не затирая несохранённое.
      *
      * Заметки, у которых есть неотправленные изменения, остаются как есть:

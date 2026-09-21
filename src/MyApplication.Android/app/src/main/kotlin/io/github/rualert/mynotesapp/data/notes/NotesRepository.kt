@@ -74,13 +74,14 @@ class NotesRepository(
 
         return runCatching {
             val full = api.byId(serverId)
-            dao.upsert(
-                note.copy(
-                    title = full.title,
-                    text = full.text,
-                    version = full.version,
-                    updatedAt = Instant.parse(full.updatedAt).toEpochMilli(),
-                ),
+            // По прочитанной до запроса копии писать нельзя: пока текст ехал,
+            // заметку могли удалить или поправить — см. NotesDao.applyFetchedNote.
+            dao.applyFetchedNote(
+                localId = localId,
+                title = full.title,
+                text = full.text,
+                version = full.version,
+                updatedAt = Instant.parse(full.updatedAt).toEpochMilli(),
             )
         }
     }
