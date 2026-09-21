@@ -5,7 +5,9 @@ name: android-release
 # без входа в GitHub и ведёт прямо на APK — в отличие от артефакта сборки в
 # android.yml, который отдаётся zip-архивом, только авторизованным и на время.
 #
-# Запускается пушем тега вида v1.0.0 (по нему же берётся имя версии). Отдельный
+# Запускается пушем тега вида android-v1.0.0 (по нему же берётся имя версии).
+# Префикс в теге обязателен: репозиторий общий для API, веб-интерфейса и
+# Android-клиента, и тег должен говорить, что именно выпускается. Отдельный
 # workflow, а не job в android.yml: у того другой триггер (каждый PR), другой
 # тип сборки и он намеренно обходится без доступа к ключу подписи.
 #
@@ -22,7 +24,7 @@ name: android-release
 on:
   push:
     tags:
-      - 'v*'
+      - 'android-v*'
 
 # Нужно для создания релиза и загрузки файла в него.
 permissions:
@@ -55,12 +57,12 @@ jobs:
       - name: Восстановить keystore из секрета
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
-      # versionName — из тега без ведущей «v»; versionCode — номер запуска
+      # versionName — из тега без префикса «android-v»; versionCode — номер запуска
       # workflow: он растёт сам и никогда не повторяется, а Android требует
       # именно возрастающего числа, иначе APK не встанет поверх прежнего.
       - name: Собрать подписанный APK
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${GITHUB_REF_NAME#android-v}"
           ./gradlew assembleRelease \
             -PmyNotesApp.googleServerClientId="${{ secrets.GOOGLE_CLIENT_ID }}" \
             -PmyNotesApp.versionName="$version" \
@@ -69,13 +71,14 @@ jobs:
             -PmyNotesApp.releaseKeystorePassword="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             -PmyNotesApp.releaseKeyAlias="${{ secrets.ANDROID_KEY_ALIAS }}" \
             -PmyNotesApp.releaseKeyPassword="${{ secrets.ANDROID_KEY_PASSWORD }}"
-          mv app/build/outputs/apk/release/app-release.apk "MyNotesApp-$GITHUB_REF_NAME.apk"
+          mv app/build/outputs/apk/release/app-release.apk "MyNotesApp-$version.apk"
 
       # gh предустановлен на раннере; стороннего action для релиза не нужно.
       - name: Создать релиз с APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "MyNotesApp-$GITHUB_REF_NAME.apk" \
-            --title "Android $GITHUB_REF_NAME" \
+          version="${GITHUB_REF_NAME#android-v}"
+          gh release create "$GITHUB_REF_NAME" "MyNotesApp-$version.apk" \
+            --title "Android $version" \
             --notes "APK для самостоятельной установки. Скачайте файл на телефон и откройте его; система спросит разрешение на установку из неизвестного источника."
