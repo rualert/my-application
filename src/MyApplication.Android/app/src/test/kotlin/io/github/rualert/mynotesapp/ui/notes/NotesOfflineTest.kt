@@ -175,6 +175,7 @@ class NotesOfflineTest : NotesViewModelTestBase() {
         // Arrange
         backend.addNote("Первая", "Текст")
         backend.addNote("Вторая", "Текст")
+        Sut.refresh()
         awaitUntil("список приехал") { Sut.list.value.notes.size == 2 }
 
         // Act
